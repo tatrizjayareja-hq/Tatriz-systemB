@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const session = require('express-session');
 const fs = require('fs');
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcryptjs");
 
 const app = express();
 const port = process.env.PORT || 3000;
