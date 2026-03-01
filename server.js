@@ -301,14 +301,15 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-// --- KONFIGURASI MULTER JURUS PAMUNGKAS (ANTI EROFS) ---
-let upload;
+// --- KONFIGURASI MULTER ANTI-ERROR VERCEL (GANTI TOTAL BARIS 305) ---
+let storage;
+
 if (process.env.VERCEL) {
-    // Jika di Vercel, paksa pakai Memory (RAM), bukan Folder
-    upload = multer({ storage: multer.memoryStorage() });
+    // Jika di Vercel, simpan di RAM (Memory), bukan di folder fisik
+    storage = multer.memoryStorage();
 } else {
-    // Jika di Laptop, baru boleh pakai Folder
-    const storageLokal = multer.diskStorage({
+    // Jika di laptop sendiri (Lokal), baru simpan ke folder public/uploads
+    storage = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, path.join(__dirname, 'public', 'uploads'));
         },
@@ -316,8 +317,9 @@ if (process.env.VERCEL) {
             cb(null, Date.now() + path.extname(file.originalname));
         }
     });
-    upload = multer({ storage: storageLokal });
 }
+
+const upload = multer({ storage: storage });
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
 app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
@@ -330,8 +332,11 @@ app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
     let params = [nama_aplikasi, nama_perusahaan, alamat, no_hp, password_admin, target_bonus, beban_tetap, nominal_buffer];
 
     if (req.file) {
+        // Jika di Vercel, kita tidak simpan ke folder (karena memoryStorage)
+        // Kita hanya simpan nama aslinya atau ID unik agar tidak error
+        const fileName = process.env.VERCEL ? 'cloud-upload-' + req.file.originalname : req.file.filename;
         sqlUpdate += `, logo_path=?`;
-        params.push(req.file.filename);
+        params.push(fileName);
     }
 
     sqlUpdate += ` WHERE tenant_id = ?`;
