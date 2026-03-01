@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const session = require('express-session');
 const fs = require('fs');
-
+const bcrypt = require("bcrypt");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -17,10 +17,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(session({
-    secret: 'kunci-rahasia-tatriz',
+    secret: "tatriz_secret_key",
     resave: false,
-    saveUninitialized: true,
-    cookie: { maxAge: 3600000 } 
+    saveUninitialized: false,
+    cookie: { 
+        secure: false, // true kalau pakai HTTPS
+        httpOnly: true,
+        maxAge: 1000 * 60 * 60 * 4 // 4 jam
+    }
 }));
 
 // 2. DATABASE INITIALIZATION (STERIL)
@@ -136,6 +140,11 @@ app.use((req, res, next) => {
     });
 });
 
+function noCache(req, res, next) {
+    res.set('Cache-Control', 'no-store');
+    next();
+}
+
 // --- 5. ROUTES ---
 
 app.get('/', (req, res) => {
@@ -164,31 +173,24 @@ app.get('/', (req, res) => {
 
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-    const sql = `SELECT u.*, s.level, s.password_admin FROM users u 
-                 LEFT JOIN settings s ON u.tenant_id = s.tenant_id WHERE u.username = ?`;
 
-    db.get(sql, [username], (err, user) => {
-        if (err) return res.status(500).send("Database Error");
-
-        if (user && user.password === password) {
-            req.session.userId = user.id;
-            req.session.role = user.role;
-            req.session.tenantId = user.tenant_id;
-            req.session.tenantLevel = user.level || 1;
-
-            if (user.role === 'admin') {
-                if (!user.password_admin) {
-                    return db.run("UPDATE settings SET password_admin = ? WHERE tenant_id = ?", 
-                        [password, user.tenant_id], () => {
-                            req.session.isAdminSetup = true;
-                            return res.send("<script>alert('Selamat Datang!'); window.location='/setup';</script>");
-                        });
-                }
-                return res.redirect('/dashboard');
-            }
-            return res.redirect('/operator');
+    db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
+        if (err || !user) {
+            return res.send("Username tidak ditemukan.");
         }
-        return res.send("<script>alert('Login Gagal!'); window.location='/';</script>");
+
+        const match = await bcrypt.compare(password, user.password);
+
+        if (!match) {
+            return res.send("Password salah.");
+        }
+
+        // jika cocok
+        req.session.userId = user.id;
+        req.session.tenantId = user.tenant_id;
+        req.session.role = user.role;
+
+        res.redirect('/dashboard');
     });
 });
 
@@ -244,38 +246,97 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-// --- KONFIGURASI MULTER (MEMORY ONLY FOR VERCEL) ---
-const storage = process.env.VERCEL ? multer.memoryStorage() : multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, 'public', 'uploads')),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+// --- KONFIGURASI MULTER (SERVERLESS READY - MEMORY ONLY) ---
+const multer = require("multer");
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // maksimal 10MB (opsional, bisa ubah)
+  },
 });
-const upload = multer({ storage: storage });
 
-// Pastikan rute save-settings menggunakan variabel 'upload' yang baru
-app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
-    const tId = req.session.tenantId; 
-    const { nama_aplikasi, nama_perusahaan, alamat, no_hp, password_admin, target_bonus, beban_tetap, nominal_buffer } = req.body;
-    
-    let sqlUpdate = `UPDATE settings SET 
-        nama_aplikasi=?, nama_perusahaan=?, alamat=?, no_hp=?, 
-        password_admin=?, target_bonus=?, beban_tetap=?, nominal_buffer=?`;
-    let params = [nama_aplikasi, nama_perusahaan, alamat, no_hp, password_admin, target_bonus, beban_tetap, nominal_buffer];
+const { v4: uuidv4 } = require("uuid");
 
-    if (req.file) {
-        // Jika di Vercel, kita tidak simpan ke folder (karena memoryStorage)
-        // Kita hanya simpan nama aslinya atau ID unik agar tidak error
-        const fileName = process.env.VERCEL ? 'cloud-upload-' + req.file.originalname : req.file.filename;
-        sqlUpdate += `, logo_path=?`;
-        params.push(fileName);
+app.post('/save-settings', isAdmin, upload.single('logo'), async (req, res) => {
+    try {
+        const tId = req.session.tenantId; 
+        const { 
+            nama_aplikasi, 
+            nama_perusahaan, 
+            alamat, 
+            no_hp, 
+            password_admin, 
+            target_bonus, 
+            beban_tetap, 
+            nominal_buffer 
+        } = req.body;
+
+        let logoUrl = null;
+
+        // ✅ Jika ada file logo, upload ke Supabase Storage
+        if (req.file) {
+            const fileExt = req.file.originalname.split('.').pop();
+            const fileName = `logo-${tId}-${uuidv4()}.${fileExt}`;
+
+            const { data, error } = await supabase.storage
+                .from("uploads") // nama bucket
+                .upload(fileName, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: true,
+                });
+
+            if (error) {
+                console.error(error);
+                return res.status(500).send("Gagal upload logo.");
+            }
+
+            // Ambil public URL
+            const { data: publicUrl } = supabase.storage
+                .from("uploads")
+                .getPublicUrl(fileName);
+
+            logoUrl = publicUrl.publicUrl;
+        }
+
+        let sqlUpdate = `UPDATE settings SET 
+            nama_aplikasi=?, 
+            nama_perusahaan=?, 
+            alamat=?, 
+            no_hp=?, 
+            password_admin=?, 
+            target_bonus=?, 
+            beban_tetap=?, 
+            nominal_buffer=?`;
+
+        let params = [
+            nama_aplikasi, 
+            nama_perusahaan, 
+            alamat, 
+            no_hp, 
+            password_admin, 
+            target_bonus, 
+            beban_tetap, 
+            nominal_buffer
+        ];
+
+        if (logoUrl) {
+            sqlUpdate += `, logo_path=?`;
+            params.push(logoUrl);
+        }
+
+        sqlUpdate += ` WHERE tenant_id=?`;
+        params.push(tId);
+
+        db.run(sqlUpdate, params, (err) => {
+            if (err) return res.status(500).send("Gagal menyimpan pengaturan.");
+            res.send("<script>alert('Pengaturan Berhasil Disimpan!'); window.location='/dashboard';</script>");
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Terjadi kesalahan server.");
     }
-
-    sqlUpdate += ` WHERE tenant_id = ?`;
-    params.push(tId);
-
-    db.run(sqlUpdate, params, (err) => {
-        if (err) return res.status(500).send("Gagal menyimpan pengaturan.");
-        res.send("<script>alert('Pengaturan Berhasil Disimpan!'); window.location='/dashboard';</script>");
-    });
 });
 
 // --- RUTE DASHBOARD (PUSAT KONTROL) ---
@@ -1556,20 +1617,29 @@ app.get('/karyawan', isAdmin, (req, res) => {
     });
 });
 
-app.post('/tambah-karyawan', isAdmin, (req, res) => {
+app.post('/tambah-karyawan', isAdmin, async (req, res) => {
     const tId = req.session.tenantId;
     const { nama_lengkap, username, password, gaji_pokok, role } = req.body;
 
-    const sql = `INSERT INTO users (tenant_id, nama_lengkap, username, password, gaji_pokok, role) 
-                 VALUES (?, ?, ?, ?, ?, ?)`;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-    db.run(sql, [tId, nama_lengkap, username, password, gaji_pokok, role], (err) => {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).send("Gagal menambah karyawan. Username mungkin sudah dipakai.");
-        }
-        res.redirect('/karyawan');
-    });
+        const sql = `INSERT INTO users 
+                     (tenant_id, nama_lengkap, username, password, gaji_pokok, role) 
+                     VALUES (?, ?, ?, ?, ?, ?)`;
+
+        db.run(sql, [tId, nama_lengkap, username, hashedPassword, gaji_pokok, role], (err) => {
+            if (err) {
+                console.error(err.message);
+                return res.status(500).send("Gagal menambah karyawan.");
+            }
+            res.redirect('/karyawan');
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Error hashing password.");
+    }
 });
 
 app.get('/hapus-karyawan/:id', isAdmin, (req, res) => {
@@ -1699,30 +1769,28 @@ app.get('/update-level/:tId/:newLevel', isAdmin, (req, res) => {
 });
 
 // --- FITUR SAKTI DEVELOPER: RESET PASSWORD SIAPAPUN ---
-app.get('/developer/reset-pass/:uId/:newPass', isAdmin, (req, res) => {
+app.post('/developer/reset-pass', isAdmin, async (req, res) => {
     const tId = req.session.tenantId;
-    const targetUserId = req.params.uId;
-    const passwordBaru = req.params.newPass;
+    const { user_id, password_baru } = req.body;
 
-    // Proteksi Super: Hanya Anda (Tenant 1) yang boleh eksekusi ini
     if (tId !== 1) {
-        return res.status(403).send("Hanya Developer yang punya Kunci Master!");
+        return res.status(403).send("Hanya Developer!");
     }
 
-    const sql = "UPDATE users SET password = ? WHERE id = ?";
-    
-    db.run(sql, [passwordBaru, targetUserId], (err) => {
-        if (err) {
-            console.error("Gagal reset password:", err.message);
-            return res.send("<script>alert('Gagal memperbarui database'); window.history.back();</script>");
-        }
-        
-        console.log(`🔑 Password User ID ${targetUserId} berhasil diubah oleh Developer.`);
-        res.send(`<script>
-            alert('Sukses! Password user tersebut sekarang adalah: ${passwordBaru}'); 
-            window.location='/master-users';
-        </script>`);
-    });
+    try {
+        const hashedPassword = await bcrypt.hash(password_baru, 10);
+
+        db.run("UPDATE users SET password = ? WHERE id = ?", 
+            [hashedPassword, user_id], 
+            (err) => {
+                if (err) return res.send("Gagal reset password.");
+                res.redirect('/master-users');
+            }
+        );
+
+    } catch (error) {
+        res.status(500).send("Gagal hashing password.");
+    }
 });
 
 // --- FUNGSI OTOMATIS UPDATE STATUS PO BERDASARKAN PEMBAYARAN ---
