@@ -204,25 +204,37 @@ app.post('/login', (req, res) => {
     });
 });
 
-app.post('/register-tenant', (req, res) => {
+app.post('/register-tenant', async (req, res) => {
     const { nama_toko, username, password } = req.body;
 
-    db.get("SELECT MAX(tenant_id) as maxId FROM settings", (err, row) => {
-        let newTenantId = (row && row.maxId < 100) ? 100 : (row ? row.maxId + 1 : 100);
+    try {
+        // 1. Hash password agar bisa dibaca bcrypt saat login
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        db.serialize(() => {
-            // Masukkan data setting dasar tanpa password_admin (NULL)
-            db.run(`INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) 
-                    VALUES (?, ?, 1, 'TATRIZ SYSTEM', 'default.png')`, 
-                [newTenantId, nama_toko]);
+        // 2. Cari ID tertinggi untuk tenant_id baru
+        db.get("SELECT MAX(tenant_id) as maxId FROM settings", [], (err, row) => {
+            let currentMax = row ? row.maxid : 0; // Postgres biasanya mengembalikan huruf kecil 'maxid'
+            let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
 
-            db.run(`INSERT INTO users (tenant_id, username, password, role, nama_lengkap) 
-                    VALUES (?, ?, ?, 'admin', ?)`, 
-                [newTenantId, username, password, 'Owner ' + nama_toko], () => {
-                    res.send("<script>alert('Registrasi Berhasil! Silakan login untuk memulai setup.'); window.location='/';</script>");
-                });
+            db.serialize(() => {
+                // 3. Masukkan ke Settings
+                db.run("INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
+                    [newTenantId, nama_toko]);
+
+                // 4. Masukkan ke Users (Gunakan Password yang sudah di-hash)
+                db.run("INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, 'admin', ?)", 
+                    [newTenantId, username, hashedPassword, 'Owner ' + nama_toko], (err) => {
+                        if (err) {
+                            console.error(err);
+                            return res.send("<script>alert('Username sudah dipakai!'); window.history.back();</script>");
+                        }
+                        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
+                    });
+            });
         });
-    });
+    } catch (e) {
+        res.status(500).send("Error saat pendaftaran");
+    }
 });
 
 // Tampilkan halaman form
