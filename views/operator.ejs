@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Kerja - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 15px; }
+        .welcome-section { margin-bottom: 20px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .motivation { font-style: italic; color: #666; font-size: 13px; margin-bottom: 15px; display: block; }
+        
+        /* Hitung Mundur Target */
+        .target-monitor { background: #fff9eb; border: 1px solid #ffeaa7; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .target-value { color: #d63031; font-weight: bold; font-size: 18px; }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #333; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff; }
+        
+        .btn-setor { background: #0984e3; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        .info-bordir { background: #f8f9fa; padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #0984e3; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="welcome-section">
+    <strong>Halo, <%= user.nama %>! 👋</strong>
+    <span class="motivation">"Semangat! Setiap tusukan jarum adalah rezeki."</span>
+</div>
+<div class="target-monitor" id="monitor_target">
+    <small>Target Bonus Hari Ini:</small><br>
+    <% if (kurangnya > 0) { %>
+        <span>Kurang <span class="target-value">Rp <%= kurangnya.toLocaleString() %></span> lagi untuk bonus!</span>
+    <% } else { %>
+        <span style="color: #27ae60; font-weight: bold;">🎉 Target tercapai! Bonus terkunci.</span>
+    <% } %>
+</div>
+
+<div class="card">
+    <form action="/simpan-kerja" method="POST">
+        <div class="input-group">
+            <label>Tanggal & Shift</label>
+            <div style="display: grid; grid-template-columns: 2fr 1.5fr; gap: 10px;">
+                <input type="date" name="tanggal" id="tgl_kerja" required>
+                <select name="shift">
+                    <option value="Pagi">Pagi</option>
+                    <option value="Sore">Sore</option>
+                    <option value="Malam">Malam</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Pilih Pesanan (PO)</label>
+            <select name="po_id" id="select_po" onchange="muatDaftarDesain(this.value)" required>
+                <option value="">-- Pilih PO --</option>
+                <% active_pos.forEach(po => { %>
+                    <option value="<%= po.id %>"><%= po.nama_po %></option>
+                <% }) %>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>Pilih Nama Desain</label>
+            <select name="detail_id" id="select_bordir" onchange="tampilkanInfo(this)" required disabled>
+                <option value="">-- Pilih Desain --</option>
+            </select>
+        </div>
+
+        <div id="info_bordir" class="info-bordir" style="background: #e8f4fd; padding: 15px; border-radius: 10px; display: none; margin-bottom: 15px; border-left: 5px solid #0984e3;">
+            <div style="margin-bottom: 5px;">
+                <small style="color: #666;">Jenis Bordir:</small><br>
+                <strong id="display_jenis" style="font-size: 16px;"></strong>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <small style="color: #666;">Upah per Pcs:</small><br>
+                <strong id="display_harga" style="color: #27ae60;"></strong>
+            </div>
+            
+            <label>Jumlah Hasil (Pcs)</label>
+            <input type="number" name="jumlah_setor" id="input_setor" placeholder="0" min="1" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+            
+            <input type="hidden" name="harga_op" id="input_harga_op">
+        </div>
+
+        <div class="input-group">
+            <label>Pilih Mesin / Jalur Kerja</label>
+            <select name="mesin_id" id="select_mesin" required>
+                <option value="">-- Gunakan Mesin Mana? --</option>
+                <% daftarMesin.forEach(m => { %>
+                    <option value="<%= m.id %>"><%= m.nama_mesin %></option>
+                <% }) %>
+            </select>
+        </div>
+
+        <button type="submit" class="btn-setor">SIMPAN HASIL KERJA</button>
+    </form>
+</div>
+
+<div style="margin-top: 25px; padding: 0 10px;">
+    <a href="/hasil-saya" style="display: block; text-align: center; background: white; color: #0984e3; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: bold; border: 2px solid #0984e3; margin-bottom: 15px;">
+        🔍 LIHAT REKAP HASIL KERJA SAYA
+    </a>
+    
+    <div style="text-align: center;">
+        <a href="/logout" style="color: #e74c3c; text-decoration: none; font-size: 14px; font-weight: bold;">
+            🚪 Keluar (Logout)
+        </a>
+    </div>
+</div>
+</div>
+
+
+
+<script>
+    // Set tanggal otomatis
+    document.getElementById('tgl_kerja').valueAsDate = new Date();
+
+    // FUNGSI 1: Memuat Nama Desain ke dalam Dropdown
+    async function muatDaftarDesain(poId) {
+        const selectBordir = document.getElementById('select_bordir');
+        const infoDiv = document.getElementById('info_bordir');
+        
+        // Sembunyikan info harga/jenis dulu tiap ganti PO
+        infoDiv.style.display = 'none';
+
+        if(!poId) { 
+            selectBordir.disabled = true; 
+            selectBordir.innerHTML = '<option value="">-- Pilih Desain --</option>';
+            return; 
+        }
+
+        try {
+            const res = await fetch(`/api/po-details/${poId}`);
+            const dataDetails = await res.json();
+            
+            if (dataDetails.length === 0) {
+                selectBordir.innerHTML = '<option value="">-- Semua Desain Selesai --</option>';
+                selectBordir.disabled = true;
+                return;
+            }
+
+            let html = '<option value="">-- Pilih Nama Desain --</option>';
+            dataDetails.forEach(d => {
+                // Titipkan data Harga, Jenis, dan Sisa di atribut 'data-'
+                html += `<option value="${d.id}" 
+                                 data-harga="${d.harga_operator}" 
+                                 data-jenis="${d.jenis_bordir}" 
+                                 data-sisa="${d.sisa}">${d.nama_desain} (Sisa: ${d.sisa} pcs)</option>`;
+            });
+            
+            selectBordir.innerHTML = html;
+            selectBordir.disabled = false;
+        } catch (err) {
+            console.error("Gagal ambil data desain:", err);
+        }
+    }
+
+    // FUNGSI 2: Mengisi Jenis Bordir & Harga secara Otomatis (HANYA SATU FUNGSI INI)
+    function tampilkanInfo(el) {
+        const infoDiv = document.getElementById('info_bordir');
+        const selected = el.options[el.selectedIndex];
+        
+        if(el.value) {
+            // Ambil data yang dititipkan tadi
+            const harga = selected.getAttribute('data-harga');
+            const jenis = selected.getAttribute('data-jenis');
+            const sisa = selected.getAttribute('data-sisa');
+
+            // Tampilkan secara otomatis ke label/input
+            document.getElementById('display_jenis').innerText = jenis;
+            document.getElementById('display_harga').innerText = "Rp " + parseInt(harga).toLocaleString('id-ID');
+            document.getElementById('input_harga_op').value = harga;
+            
+            // Atur batas maksimal input agar tidak melebihi sisa PO
+            const inputSetor = document.getElementById('input_setor');
+            // tidak ada Max
+            inputSetor.placeholder = "Maksimal " + sisa;
+            
+            infoDiv.style.display = 'block';
+        } else {
+            infoDiv.style.display = 'none';
+        }
+    }
+</script>
+</body>
+</html>

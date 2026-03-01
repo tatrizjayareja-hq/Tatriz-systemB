@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Akun Baru - Tatriz SystemB</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --dark-green: #195e0b;
+            --primary-green: #59cf77;
+            --accent-green: #48b865;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            /* Latar belakang luar hijau konsisten dengan Login */
+            background: linear-gradient(135deg, #195e0b 0%, #48b865 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- CARD UTAMA (SPLIT MODEL) --- */
+        .register-card {
+            display: flex;
+            width: 900px;
+            max-width: 95%;
+            height: 600px;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        /* --- SISI KIRI: BRANDING (PUTIH) --- */
+        .side-branding {
+            flex: 1.2;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            border-right: 1px solid #eee;
+        }
+
+        .side-branding img {
+            width: 140px;
+            height: auto;
+            margin-bottom: 25px;
+        }
+
+        .side-branding h1 {
+            color: var(--dark-green);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+        }
+
+        .side-branding .tagline {
+            color: #636e72;
+            font-size: 15px;
+            margin-top: 15px;
+            line-height: 1.6;
+            max-width: 85%;
+        }
+
+        /* --- SISI KANAN: FORM REGISTER (HIJAU TUA) --- */
+        .side-form {
+            flex: 1;
+            background-color: var(--dark-green);
+            color: white;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .side-form h2 {
+            margin: 0 0 10px 0;
+            font-size: 26px;
+        }
+
+        .side-form p {
+            font-size: 13px;
+            opacity: 0.8;
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255,255,255,0.5);
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 12px 15px 12px 40px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.3s;
+            font-size: 14px;
+        }
+
+        .input-wrapper input:focus {
+            background: rgba(255,255,255,0.2);
+            border-color: var(--primary-green);
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary-green);
+            color: var(--dark-green);
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 15px;
+            text-transform: uppercase;
+        }
+
+        .btn-register:hover {
+            background: white;
+            transform: translateY(-2px);
+        }
+
+        .login-link {
+            margin-top: 25px;
+            font-size: 13px;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .login-link a {
+            color: var(--primary-green);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .register-card { flex-direction: column; height: auto; }
+            .side-branding { padding: 30px; }
+            .side-form { padding: 35px 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="register-card">
+        <div class="side-branding">
+            <img src="/img/Tatriz SystemB.png" alt="Logo Tatriz SystemB">
+            <h1>Tatriz SystemB</h1>
+            <p class="tagline">
+                Daftarkan perusahaan atau unit usaha bordir Anda untuk manajemen pembukuan yang lebih cerdas dan otomatis.
+            </p>
+            <div style="margin-top: 20px; color: var(--dark-green); font-weight: bold; font-size: 12px;">
+                <i class="fas fa-check-circle"></i> Multi-Tenant Secured
+            </div>
+        </div>
+
+        <div class="side-form">
+            <h2>Registrasi Akun</h2>
+            <p>Silakan lengkapi data untuk membuat akun baru.</p>
+
+            <form action="/register-tenant" method="POST">
+                <div class="form-group">
+                    <label>Nama Perusahaan / Unit Usaha</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-building"></i>
+                        <input type="text" name="nama_toko" placeholder="Contoh: Tatriz Solo Raya" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Username Admin Owner</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user-shield"></i>
+                        <input type="text" name="username" placeholder="Buat username untuk login" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Password Akun</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-key"></i>
+                        <input type="password" name="password" placeholder="Minimal 6 karakter" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-register">Daftarkan Perusahaan</button>
+            </form>
+
+            <div class="login-link">
+                Sudah memiliki akun? <a href="/">Masuk Sekarang</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

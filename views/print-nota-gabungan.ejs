@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Nota Gabungan - <%= orders[0].customer %></title>
+    <style>
+        @media print { 
+            @page { size: 105mm 148mm; margin: 0; } 
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+            .no-print { display: none; }
+        }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background-color: #fff; color: #333; }
+        
+        .nota-box { 
+            width: 105mm; height: 148mm; position: relative; padding: 8mm; 
+            box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column;
+            border: 1px solid #eee;
+        }
+
+        .header-container { display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px; }
+        .logo-header { width: 45px; height: 45px; object-fit: contain; margin-right: 10px; }
+        .company-info { flex-grow: 1; }
+        .company-info h2 { margin: 0; font-size: 13px; color: #2c3e50; text-transform: uppercase; }
+        .company-info p { margin: 1px 0; font-size: 8px; line-height: 1.2; }
+        
+        .label-nota { text-align: right; }
+        .label-nota h3 { margin: 0; color: #e67e22; font-size: 11px; }
+        .label-nota p { margin: 1px 0; font-size: 8px; }
+
+        .content-area { position: relative; z-index: 1; flex-grow: 1; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 10px; }
+        th { background: #f8f9fa; border-bottom: 1px solid #333; padding: 6px; text-align: left; }
+        td { border-bottom: 1px solid #eee; padding: 8px 4px; vertical-align: top; }
+
+        .footer-nota { margin-top: auto; padding-top: 5px; }
+        .total-box { width: 100%; margin-bottom: 5px; border-top: 1px solid #333; padding-top: 5px; }
+        .total-row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 11px; }
+        
+        .ttd-section { display: flex; justify-content: space-between; margin-top: 10px; font-size: 9px; text-align: center; }
+        .ttd-box { width: 45%; }
+        .ttd-space { height: 35px; }
+        
+        .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); opacity: 0.05; width: 220px; z-index: 0; pointer-events: none; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="nota-box">
+        <img src="/uploads/<%= config.logo_path %>" class="watermark">
+
+        <div class="header-container">
+            <img src="/uploads/<%= config.logo_path %>" class="logo-header">
+            <div class="company-info">
+                <h2><%= config.nama_perusahaan %></h2>
+                <p><%= config.alamat.replace(/\n/g, ' ') %></p>
+                <p><strong>WA: <%= config.no_hp %></strong></p>
+            </div>
+            <div class="label-nota">
+                <h3>NOTA TAGIHAN GABUNGAN</h3>
+                <p>Tgl: <%= new Date().toLocaleDateString('id-ID') %></p>
+                <p>Cust: <strong><%= orders[0].customer %></strong></p>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Deskripsi PO</th>
+                        <th class="text-center" style="width: 15%;">Qty</th>
+                        <th class="text-end" style="width: 20%;">Harga/Baju</th>
+                        <th class="text-end" style="width: 25%;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% 
+                        let grandTotalTagihan = 0;
+                        let grandTotalBayar = 0;
+
+                        orders.forEach(po => { 
+                            let totalHargaPO = (po.total_harga_customer || 0);
+                            let totalBayarPO = (po.total_bayar || 0);
+                            
+                            grandTotalTagihan += totalHargaPO;
+                            grandTotalBayar += totalBayarPO;
+
+                            // Ambil Qty Baju (Logika Bos)
+                            let detailSatu = details.find(d => d.po_id === po.id);
+                            let qtyBaju = detailSatu ? detailSatu.jumlah : 0;
+                            let hargaPerBaju = qtyBaju > 0 ? (totalHargaPO / qtyBaju) : 0;
+                    %>
+                    <tr>
+                        <td><strong><%= po.nama_po %></strong></td>
+                        <td class="text-center"><%= qtyBaju %></td>
+                        <td class="text-end"><%= hargaPerBaju.toLocaleString('id-ID') %></td>
+                        <td class="text-end" style="font-weight: bold;"><%= totalHargaPO.toLocaleString('id-ID') %></td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-nota">
+            <div class="total-box">
+                <div class="total-row">
+                    <span>Total Keseluruhan PO:</span>
+                    <span>Rp <%= grandTotalTagihan.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="total-row" style="color: #27ae60;">
+                    <span>Total DP/Cicilan Masuk:</span>
+                    <span>Rp <%= grandTotalBayar.toLocaleString('id-ID') %></span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #333; margin: 4px 0;">
+                <div class="total-row" style="font-weight: bold; font-size: 13px;">
+                    <span>SISA YANG HARUS DIBAYAR:</span>
+                    <span style="color: #d63031;">Rp <%= (grandTotalTagihan - grandTotalBayar).toLocaleString('id-ID') %></span>
+                </div>
+            </div>
+
+            <div class="ttd-section">
+                <div class="ttd-box">Penerima,<div class="ttd-space"></div>( ............................ )</div>
+                <div class="ttd-box">Hormat Kami,<div class="ttd-space"></div>( ............................ )</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            setTimeout(() => { window.print(); }, 500);
+        };
+    </script>
+</body>
+</html>

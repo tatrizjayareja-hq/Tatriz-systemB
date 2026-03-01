@@ -1,0 +1,87 @@
+<%- include('../partials/header') %> 
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Form Input Gaji Mingguan</h4>
+            <span class="badge bg-light text-dark">Periode: <%= tgl_awal %> s/d <%= tgl_akhir %></span>
+        </div>
+        <div class="card-body">
+            <form action="/proses-print-gaji" method="POST" target="_blank">
+                <input type="hidden" name="tgl_awal" value="<%= tgl_awal %>">
+                <input type="hidden" name="tgl_akhir" value="<%= tgl_akhir %>">
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle" style="font-size: 0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nama Karyawan</th>
+                                <th style="width: 150px;">Gaji Pokok (Hari)</th>
+                                <th style="width: 100px;">Hari Kerja</th>
+                                <th style="width: 100px;">Lembur (Sesi)</th>
+                                <th style="width: 130px;">Bonus Target</th>
+                                <th style="width: 130px;">Kasbon</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% Object.values(rekap).forEach(op => { %>
+                            <tr>
+                                <td>
+                                    <strong><%= op.nama %></strong><br>
+                                    <small class="badge bg-info text-uppercase"><%= op.role %></small>
+                                    <input type="hidden" name="operator_ids" value="<%= op.id %>">
+                                    <input type="hidden" name="nama" value="<%= op.nama %>">
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input type="number" name="gp" value="<%= op.gp %>" class="form-control bg-light" readonly>
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="number" name="hari_kerja" value="6" class="form-control form-control-sm text-center">
+                                </td>
+                                <td>
+                                    <input type="number" name="lembur" value="0" class="form-control form-control-sm text-center">
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input type="number" name="bonus" value="<%= op.bonus %>" class="form-control bg-light" readonly>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text text-danger">-</span>
+                                        <input type="number" name="kasbon" value="0" class="form-control form-control-sm text-danger" placeholder="0">
+                                    </div>
+                                </td>
+                            </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-between">
+                    <a href="/input-gaji" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Ganti Tanggal
+                    </a>
+                    <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                        <i class="bi bi-printer"></i> PROSES & CETAK SLIP
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="alert alert-info mt-3 border-0 shadow-sm">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+            <small>
+                <strong>Catatan Logika:</strong><br>
+                * Gaji Pokok & Bonus Target diambil otomatis dari data produksi. <br>
+                * Anda cukup menginput <strong>Hari Kerja, Lembur, dan Kasbon</strong> secara manual sebelum cetak.
+            </small>
+        </div>
+    </div>
+</div>
+<%- include('../partials/footer') %>

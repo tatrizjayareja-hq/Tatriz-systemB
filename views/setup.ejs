@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Setup - Tatriz System</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary: #2ecc71; --primary-dark: #27ae60; --dark: #2c3e50;
+            --light: #f4f7f6; --danger: #e74c3c; --warning: #f39c12; --blue: #3498db;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--light); margin: 0; padding: 20px; }
+        .setup-container { max-width: 850px; margin: auto; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e1e4e8; }
+        .section-title { font-size: 18px; font-weight: 800; color: var(--dark); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--primary); padding-bottom: 8px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 700; color: #555; font-size: 13px; text-transform: uppercase; }
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+        .btn { width: 100%; padding: 14px; border: none; color: white; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; transition: 0.3s; }
+        .btn-save { background: var(--primary); font-size: 16px; margin-top: 20px; }
+        .btn-save:hover { background: var(--primary-dark); }
+        
+        /* State untuk akun standar */
+        .pro-locked { opacity: 0.6; cursor: not-allowed !important; }
+        .pro-locked input { background: #f9f9f9; pointer-events: none; }
+        
+        .badge-pro { background: var(--warning); color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 12px; border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .input-locked { background: #eee !important; cursor: not-allowed; color: #7f8c8d; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<% 
+    // Logika Penentu Akses
+    const isOwner = (user.tenantId === 1); 
+    const isPro = (user.tenantLevel >= 2 || isOwner);
+%>
+
+<div class="setup-container">
+    <div style="margin-bottom: 20px;">
+        <a href="/dashboard" style="text-decoration: none; color: var(--dark); font-weight: bold;">← Kembali ke Dashboard</a>
+    </div>
+
+    <form action="/save-settings-all" method="POST">
+        <div class="card">
+            <div class="section-title">🏢 Profil & Identitas Perusahaan</div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Nama Aplikasi</label>
+                    <input type="text" value="Tatriz SystemB" readonly class="input-locked">
+                </div>
+                <div class="form-group">
+                    <label>Nama Perusahaan / Toko</label>
+                    <input type="text" name="nama_perusahaan" value="<%= config.nama_perusahaan %>" required>
+                </div>
+                <div class="form-group">
+                    <label>Nomor HP / WhatsApp</label>
+                    <input type="text" name="no_hp" value="<%= config.no_hp %>">
+                </div>
+                <div class="form-group">
+                    <label>Alamat Workshop</label>
+                    <textarea name="alamat" rows="1"><%= config.alamat %></textarea>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+            <div class="section-title">💰 Kebijakan Gaji & Bonus</div>
+            <div class="grid-2">
+                <div class="form-group <%= !isPro ? 'pro-locked' : '' %>" 
+                    <% if (!isPro) { %> onclick="ajakUpgrade('Target Bonus')" <% } %>>
+                    <label>Target Bonus Harian <%- !isPro ? '<span class="badge-pro">PRO</span>' : '' %></label>
+                    <input type="number" name="target_bonus" value="<%= config.target_bonus %>" <%= !isPro ? 'readonly' : '' %>>
+                </div>
+                
+                <div class="form-group <%= !isPro ? 'pro-locked' : '' %>" 
+                    <% if (!isPro) { %> onclick="ajakUpgrade('Bonus Dasar')" <% } %>>
+                    <label>Bonus Dasar <%- !isPro ? '<span class="badge-pro">PRO</span>' : '' %></label>
+                    <input type="number" name="nominal_bonus_dasar" value="<%= config.nominal_bonus_dasar %>" <%= !isPro ? 'readonly' : '' %>>
+                </div>
+            </div>
+
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+            <div class="section-title" style="border-bottom-color: var(--warning);">🛡️ Manajemen Kas & Saldo Aman</div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Saldo Awal / Backup Dana</label>
+                    <input type="number" name="nominal_buffer" value="<%= config.nominal_buffer || 0 %>" required>
+                </div>
+                <div class="form-group <%= !isPro ? 'pro-locked' : '' %>" 
+                    <% if (!isPro) { %> onclick="ajakUpgrade('Beban Tetap')" <% } %>>
+                    <label>Beban Tetap Bulanan <%- !isPro ? '<span class="badge-pro">PRO</span>' : '' %></label>
+                    <input type="number" name="beban_tetap" value="<%= config.beban_tetap || 0 %>" <%= !isPro ? 'readonly' : '' %>>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="border-left: 5px solid var(--blue);">
+            <div class="section-title" style="border-bottom-color: var(--blue);">⚙️ Mesin Produksi</div>
+            
+            <% if (!isPro && machines.length >= 1) { %>
+                <div style="background: #fff9db; padding: 12px; border-radius: 8px; border: 1px solid #fab005; margin-bottom: 15px; font-size: 13px;">
+                    ⚠️ Akun Standar terbatas 1 Mesin. <b>Upgrade PRO</b> untuk tambah mesin.
+                </div>
+            <% } else { %>
+                <div class="form-group">
+                    <label>Tambah Mesin Baru</label>
+                    <input type="text" name="nama_mesin_baru" placeholder="Contoh: Mesin 02 - Barudan">
+                </div>
+            <% } %>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nama Mesin Aktif</th>
+                        <% if (isPro) { %>
+                            <th style="text-align: center;">Aksi</th>
+                        <% } %>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% machines.forEach(m => { %>
+                    <tr>
+                        <td>#<%= m.id %></td>
+                        <td><strong><%= m.nama_mesin %></strong></td>
+                        <% if (isPro) { %>
+                            <td style="text-align: center;">
+                                <button type="button" onclick="editMesin('<%= m.id %>', '<%= m.nama_mesin %>')" 
+                                        style="background: var(--warning); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                    EDIT
+                                </button>
+                                
+                                <button type="button" onclick="konfirmasiHapusMesin('<%= m.id %>')" 
+                                        style="background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 5px;">
+                                    HAPUS
+                                </button>
+                            </td>
+                        <% } %>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <button type="submit" class="btn btn-save">💾 SIMPAN SEMUA PERUBAHAN SETUP</button>
+    </form>
+</div>
+
+<script>
+    function ajakUpgrade(fitur) {
+        Swal.fire({
+            title: 'Fitur PRO!',
+            text: 'Pengaturan ' + fitur + ' hanya tersedia di paket PRO.',
+            icon: 'lock',
+            showCancelButton: true,
+            confirmButtonText: 'Hubungi Developer'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.open('https://wa.me/6281234567890?text=Halo%20Admin,%20saya%20ingin%20upgrade%20untuk%20' + fitur, '_blank');
+            }
+        });
+    }
+    // Fungsi untuk Edit Mesin
+    function editMesin(id, namaLama) {
+        Swal.fire({
+            title: 'Edit Nama Mesin',
+            input: 'text',
+            inputValue: namaLama,
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            confirmButtonColor: '#3498db',
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                // Kita buat form bayangan untuk kirim data ke rute /save-mesin yang ada di server
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/save-mesin';
+                
+                const inputId = document.createElement('input');
+                inputId.type = 'hidden';
+                inputId.name = 'mesin_id';
+                inputId.value = id;
+                
+                const inputNama = document.createElement('input');
+                inputNama.type = 'hidden';
+                inputNama.name = 'nama_mesin';
+                inputNama.value = result.value;
+                
+                form.appendChild(inputId);
+                form.appendChild(inputNama);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+
+    // Fungsi untuk Konfirmasi Hapus
+    function konfirmasiHapusMesin(id) {
+        Swal.fire({
+            title: 'Yakin hapus mesin?',
+            text: "Data produksi yang terikat mesin ini mungkin akan kehilangan referensi nama mesin.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#2c3e50',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = '/delete-mesin/' + id;
+            }
+        });
+    }
+</script>
+</body>
+</html>

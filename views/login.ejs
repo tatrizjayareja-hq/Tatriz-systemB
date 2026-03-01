@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Tatriz SystemB</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --dark-green: #195e0b;
+            --primary-green: #59cf77;
+            --accent-green: #48b865;
+            --bg-soft: #eef2f3;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #195e0b 0%, #48b865 100%); /* Latar belakang luar hijau */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- CARD UTAMA --- */
+        .login-card {
+            display: flex;
+            width: 900px;
+            max-width: 95%;
+            height: 550px;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        /* --- SISI KIRI: FORM LOGIN (HIJAU TUA) --- */
+        .side-form {
+            flex: 1;
+            background-color: var(--dark-green);
+            color: white;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .side-form h2 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+
+        .side-form p {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255,255,255,0.5);
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            padding: 12px 15px 12px 45px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .input-wrapper input:focus {
+            background: rgba(255,255,255,0.2);
+            border-color: var(--primary-green);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary-green);
+            color: var(--dark-green);
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            background: white;
+            transform: translateY(-2px);
+        }
+
+        /* --- SISI KANAN: BRANDING (PUTIH) --- */
+        .side-branding {
+            flex: 1.2;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            border-left: 1px solid #eee;
+        }
+
+        .side-branding img {
+            width: 150px;
+            height: auto;
+            margin-bottom: 25px;
+        }
+
+        .side-branding h1 {
+            color: var(--dark-green);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+        }
+
+        .side-branding .tagline {
+            color: #636e72;
+            font-size: 16px;
+            margin-top: 10px;
+            line-height: 1.5;
+            max-width: 80%;
+        }
+
+        .reg-link {
+            margin-top: 40px;
+            font-size: 14px;
+            color: #b2bec3;
+        }
+
+        .reg-link a {
+            color: var(--dark-green);
+            text-decoration: none;
+            font-weight: bold;
+            border-bottom: 2px solid var(--primary-green);
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .login-card { flex-direction: column; height: auto; }
+            .side-branding { order: -1; padding: 30px; }
+            .side-form { padding: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="side-form">
+            <h2>Portal Masuk</h2>
+            <p>Silakan login untuk akses dashboard.</p>
+
+            <form action="/login" method="POST">
+                <div class="form-group">
+                    <label>Username</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user"></i>
+                        <input type="text" name="username" placeholder="Masukkan username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" name="password" placeholder="Masukkan password" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">MASUK SEKARANG</button>
+            </form>
+
+            <% if (isNew) { %>
+            <div style="margin-top: 20px; font-size: 12px; color: #fab1a0;">
+                <i class="fas fa-info-circle"></i> Sistem baru. <a href="/setup-auth" style="color: white;">Klik Setup Awal</a>
+            </div>
+            <% } %>
+        </div>
+
+        <div class="side-branding">
+            <img src="/img/Tatriz SystemB.png" alt="Logo Tatriz SystemB">
+            <h1>Tatriz SystemB</h1>
+            <p class="tagline">Solusi digital cerdas untuk manajemen bordir profesional yang akurat dan terintegrasi.</p>
+            
+            <div class="reg-link">
+                Belum bergabung? <a href="/register">Daftarkan Perusahaan Anda</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

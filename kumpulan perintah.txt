@@ -1,0 +1,2 @@
+// eksport semua kode
+Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules|\.git|dist|build|venv' -and $_.Extension -match '\.(js|ts|py|c|cpp|cs|html|css|php|java)$' } | ForEach-Object { "--- START FILE: $($_.FullName) ---`n"; Get-Content $_.FullName; "`n--- END FILE ---`n`n" } | Out-File -FilePath "Project_Semua_Kode.txt" -Encoding utf8

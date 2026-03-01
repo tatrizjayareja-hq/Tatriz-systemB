@@ -1,0 +1,13 @@
+Get-ChildItem -Path . -Recurse -File | Where-Object { 
+    $_.FullName -notlike "*\node_modules\*" -and 
+    $_.FullName -notlike "*\.git\*" -and 
+    ($_.Extension -eq ".js" -or $_.Extension -eq ".ejs") 
+} | ForEach-Object { 
+    "--- FILE: $($_.FullName) ---" | Out-File -FilePath backup_kode.txt -Append -Encoding utf8;
+    Get-Content $_.FullName | Out-File -FilePath backup_kode.txt -Append -Encoding utf8;
+    "`n`n" | Out-File -FilePath backup_kode.txt -Append -Encoding utf8 
+}
+
+
+menghapus pilihan mesin yang terlanjut ada cmt nya
+db.run("DELETE FROM mesin WHERE nama_mesin = 'CMT / LUAR'");

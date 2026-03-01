@@ -1,0 +1,118 @@
+<%- include('../partials/header') %>
+<div class="container mt-4 mb-5">
+    <div class="card shadow border-0">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="bi bi-calculator-fill"></i> Rincian Gaji Mingguan</h4>
+            <span class="badge bg-light text-dark">Periode: <%= tgl_awal %> s/d <%= tgl_akhir %></span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning py-2" style="font-size: 0.85rem;">
+                <i class="bi bi-info-circle-fill"></i> <strong>Cara Input Jam:</strong> Gunakan titik untuk jam (8 jam = 1 hari). 
+                Contoh: <b>5.6</b> (5 hari 6 jam). Klik <b>"Hitung Rincian"</b> untuk melihat total sebelum cetak.
+            </div>
+
+            <form action="/proses-print-gaji" method="POST" target="_blank">
+                <input type="hidden" name="tgl_awal" value="<%= tgl_awal %>">
+                <input type="hidden" name="tgl_akhir" value="<%= tgl_akhir %>">
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle" id="tabelGaji">
+                        <thead class="table-dark text-center" style="font-size: 0.85rem;">
+                            <tr>
+                                <th>Nama Karyawan</th>
+                                <th>GP / Hari</th>
+                                <th style="width: 110px;">Hari.Jam</th>
+                                <th style="width: 100px;">Lembur</th>
+                                <th>Borongan & Bonus</th>
+                                <th style="width: 130px;">Kasbon</th>
+                                <th class="bg-success">Total Terima</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% Object.values(rekap).forEach((op, index) => { %>
+                            <tr class="baris-gaji">
+                                <td>
+                                    <strong><%= op.nama %></strong>
+                                    <input type="hidden" name="operator_ids" value="<%= op.id %>">
+                                    <input type="hidden" name="nama" value="<%= op.nama %>">
+                                </td>
+                                <td>
+                                    <input type="number" name="gp" value="<%= op.gp %>" class="form-control form-control-sm input-gp bg-light" readonly>
+                                </td>
+                                <td>
+                                    <input type="number" step="0.1" name="hari_kerja" value="6.0" class="form-control form-control-sm text-center fw-bold input-hk">
+                                </td>
+                                <td>
+                                    <input type="number" name="lembur" value="0" class="form-control form-control-sm text-center input-lembur">
+                                </td>
+                                <td>
+                                    <div class="text-end" style="font-size: 0.8rem;">
+                                        <input type="hidden" name="bonus" class="input-borongan-bonus" value="<%= op.borongan + op.bonus %>">
+                                        Rp <%= (op.borongan + op.bonus).toLocaleString('id-ID') %>
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="number" name="kasbon" value="0" class="form-control form-control-sm text-danger fw-bold input-kasbon">
+                                </td>
+                                <td class="text-end fw-bold text-success bg-light">
+                                    <span class="total-tampil">Rp 0</span>
+                                </td>
+                            </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-between">
+                    <div>
+                        <a href="/input-gaji" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Kembali
+                        </a>
+                        <button type="button" onclick="hitungSemua()" class="btn btn-info text-white shadow-sm">
+                            <i class="bi bi-cpu"></i> HITUNG RINCIAN
+                        </button>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                        <i class="bi bi-printer"></i> PROSES & CETAK SLIP
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function hitungSemua() {
+    const baris = document.querySelectorAll('.baris-gaji');
+
+    baris.forEach(row => {
+        const gp = parseFloat(row.querySelector('.input-gp').value) || 0;
+        const hkRaw = row.querySelector('.input-hk').value.toString();
+        const lembur = parseFloat(row.querySelector('.input-lembur').value) || 0;
+        const boronganBonus = parseFloat(row.querySelector('.input-borongan-bonus').value) || 0;
+        const kasbon = parseFloat(row.querySelector('.input-kasbon').value) || 0;
+
+        // Logika Hari.Jam (Contoh 5.6)
+        let hari = 0;
+        let jam = 0;
+        if (hkRaw.includes('.')) {
+            const split = hkRaw.split('.');
+            hari = parseFloat(split[0]) || 0;
+            jam = parseFloat(split[1]) || 0;
+        } else {
+            hari = parseFloat(hkRaw) || 0;
+        }
+
+        // Hitung Nominal
+        const nominalHK = (hari * gp) + ((gp / 8) * jam);
+        const nominalLembur = (gp / 4) * lembur;
+        const total = nominalHK + nominalLembur + boronganBonus - kasbon;
+
+        // Tampilkan ke kolom
+        row.querySelector('.total-tampil').innerText = 'Rp ' + Math.round(total).toLocaleString('id-ID');
+    });
+
+    alert('Perhitungan selesai! Silakan cek kolom Total Terima.');
+}
+</script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Karyawan & Gaji - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 12px; max-width: 900px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .form-tambah { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 12px; 
+            margin-bottom: 30px; 
+            background: #f9f9f9; 
+            padding: 20px; 
+            border-radius: 8px;
+        }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #2d3436; color: white; text-align: left; padding: 12px; }
+        td { padding: 12px; border-bottom: 1px solid #eee; }
+        .btn-simpan { background: #59cf77; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+        .badge-op { background: #e3f2fd; color: #0984e3; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <a href="/dashboard" style="text-decoration: none; color: #666;">← Dashboard</a>
+        <h2>👥 Manajemen Karyawan & Setting Gaji</h2>
+
+        <form action="/tambah-karyawan" method="POST" class="form-tambah">
+            <div>
+                <label style="font-size: 12px;">Nama Lengkap</label>
+                <input type="text" name="nama_lengkap" placeholder="Contoh: Budi" required style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-size: 12px;">Username (Login)</label>
+                <input type="text" name="username" placeholder="budi123" required style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-size: 12px;">Password</label>
+                <input type="password" name="password" required style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-size: 12px;">Gaji Pokok (Harian)</label>
+                <input type="number" name="gaji_pokok" placeholder="Rp 0" required style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-size: 12px;">Jabatan</label>
+                <select name="role" style="width: 100%;">
+                    <option value="operator">Operator</option>
+                    <option value="QC">QC</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-simpan">Tambah</button>
+        </form>
+<div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nama</th>
+                    <th>Jabatan</th>
+                    <th>Gaji Pokok</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% users.forEach(user => { %>
+                <tr>
+                    <td>
+                        <strong><%= user.nama_lengkap %></strong><br>
+                        <small style="color: #888;">User: <%= user.username %></small>
+                    </td>
+                    <td><span class="badge badge-op"><%= user.role.toUpperCase() %></span></td>
+                    <td>Rp <%= (user.gaji_pokok || 0).toLocaleString() %></td>
+                    <td>
+                        <% if(user.username !== 'admin') { %>
+                            <a href="/hapus-karyawan/<%= user.id %>" onclick="return confirm('Hapus user ini?')" style="color: #ff7675; text-decoration: none;">❌</a>
+                        <% } %>
+                    </td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

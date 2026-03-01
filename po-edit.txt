@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit PO - <%= po.nama_po %></title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; margin: 0; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        
+        /* Tabel Responsif untuk HP */
+        .table-wrapper { overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        th { background: #f8f9fa; }
+
+        .btn-update { background: #f1c40f; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 20px; font-size: 16px; }
+        
+        /* Kotak Pembayaran */
+        .payment-info { background: #fdf9ea; padding: 15px; border-radius: 10px; border: 1px solid #ffeaa7; margin-bottom: 20px; }
+        .status-badge { background: #e67e22; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="/po-data" style="text-decoration: none; color: #666; font-size: 14px;">⬅ Batal & Kembali</a>
+    <h2 style="margin-top: 10px;">📝 Edit Pesanan (PO)</h2>
+
+    <div class="payment-info">
+        <label>📊 Ringkasan Pembayaran:</label>
+        <% 
+            let bayar = po.total_bayar || 0;
+            let total = po.total_harga_customer || 0;
+            let sisa = total - bayar;
+        %>
+
+        <% if (po.status === 'Lunas' || sisa <= 0) { %>
+            <div style="color: #27ae60; font-weight: bold; font-size: 18px;">
+                ✅ LUNAS (Rp <%= total.toLocaleString() %>)
+            </div>
+        <% } else { %>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <span style="font-size: 14px; color: #555;">Sudah Bayar:</span><br>
+                    <b style="color: #27ae60; font-size: 16px;">Rp <%= bayar.toLocaleString() %></b>
+                </div>
+                <div style="text-align: right;">
+                    <span style="font-size: 14px; color: #555;">Sisa Tagihan:</span><br>
+                    <b style="color: #d63031; font-size: 16px;">Rp <%= sisa.toLocaleString() %></b>
+                </div>
+            </div>
+            <% if (po.status === 'DP/Cicil') { %>
+                <div style="margin-top: 10px;">
+                    <span class="status-badge">STATUS: MENCICIL</span>
+                </div>
+            <% } %>
+        <% } %>
+    </div>
+
+    <form action="/update-po/<%= po.id %>" method="POST">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="form-group">
+                <label>Tanggal Nota</label>
+                <input type="date" name="tanggal" value="<%= po.tanggal %>" required>
+            </div>
+            <div class="form-group">
+                <label>Status Produksi/Bayar</label>
+                <select name="status">
+                    <option value="Design" <%= po.status === 'Design' ? 'selected' : '' %>>Design</option>
+                    <option value="Produksi" <%= po.status === 'Produksi' ? 'selected' : '' %>>Produksi</option>
+                    <option value="QC" <%= po.status === 'QC' ? 'selected' : '' %>>QC</option>
+                    <option value="Clear" <%= po.status === 'Clear' ? 'selected' : '' %>>Clear</option>
+                    <option value="DP/Cicil" <%= po.status === 'DP/Cicil' ? 'selected' : '' %>>DP/Cicil</option>
+                    <option value="Lunas" <%= po.status === 'Lunas' ? 'selected' : '' %>>Lunas</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nama PO</label>
+                <input type="text" name="nama_po" value="<%= po.nama_po %>" required>
+            </div>
+            <div class="form-group">
+                <label>Customer</label>
+                <input type="text" name="customer" value="<%= po.customer %>" required>
+            </div>
+        </div>
+
+        <h3>📦 Rincian Bordir</h3>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Jenis Bordir</th>
+                        <th>Nama Desain</th>
+                        <th>Qty</th>
+                        <th>Hrg Op</th>
+                        <th>Hrg Cust</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% details.forEach(item => { %>
+                    <tr>
+                        <td><input type="text" name="jenis_bordir" value="<%= item.jenis_bordir %>"></td>
+                        <td><input type="text" name="nama_desain" value="<%= item.nama_desain %>"></td>
+                        <td><input type="number" name="jumlah" value="<%= item.jumlah %>" style="width: 70px;"></td>
+                        <td><input type="number" name="harga_operator" value="<%= item.harga_operator %>" style="width: 90px;"></td>
+                        <td><input type="number" name="harga_customer" value="<%= item.harga_customer %>" style="width: 100px;"></td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+
+        <button type="submit" class="btn-update">SIMPAN PERUBAHAN DATA</button>
+    </form>
+</div>
+<a href="/cetak-nota/<%= po.id %>" target="_blank" 
+   style="display: block; text-align: center; background: #3498db; color: white; padding: 15px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px;">
+   🖨️ CETAK NOTA RESMI
+</a>
+</body>
+</html>

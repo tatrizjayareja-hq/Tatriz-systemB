@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nota Manual - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; margin: 0; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        /* Gaya Form Input */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        
+        table.input-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; font-size: 12px; color: #666; padding: 5px; }
+        
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .btn-add { background: #f1f2f6; color: #2f3542; border: 1px dashed #ced4da; margin-bottom: 15px; }
+        .btn-preview { background: #3498db; color: white; font-size: 16px; }
+
+        /* Modal Preview */
+        #modalPreview { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.85); z-index: 1000; overflow-y: auto; padding: 20px; box-sizing: border-box;
+        }
+
+        /* Kunci Ukuran A6 Potret (105mm x 148mm) */
+        .preview-content { 
+            background: white; 
+            width: 105mm; 
+            height: 148mm; 
+            margin: auto; 
+            padding: 8mm; 
+            position: relative; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 768px) {
+            .preview-content { width: 100%; height: auto; min-height: 148mm; }
+        }
+
+        /* CSS KHUSUS CETAK */
+        @media print {
+            @page { 
+                size: 105mm 148mm; /* A6 Potret */
+                margin: 0; 
+            }
+            body { background: none; padding: 0; margin: 0; }
+            .container, #modalPreview button, .no-print { display: none !important; }
+            #modalPreview { position: absolute; top: 0; left: 0; width: 105mm; height: 148mm; display: block; background: none; padding: 0; }
+            .preview-content { border: none; box-shadow: none; width: 105mm; height: 148mm; padding: 8mm; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="/dashboard" style="text-decoration: none; color: #666; font-size: 14px;">⬅ Kembali ke Dashboard</a>
+    <h2 style="margin-top: 10px; color: #2c3e50;">📝 Buat Nota Manual</h2>
+    <hr>
+
+    <div class="form-group">
+        <label>Nama Customer</label>
+        <input type="text" id="cust" placeholder="Nama pelanggan (Kosongkan jika Umum)">
+    </div>
+
+    <table id="tabelItem" class="input-table">
+        <thead>
+            <tr>
+                <th>Nama Barang / Jasa</th>
+                <th width="70">Qty</th>
+                <th width="120">Harga</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><input type="text" class="nama" placeholder="Contoh: Bordir Jaket"></td>
+                <td><input type="number" class="qty" value="1"></td>
+                <td><input type="number" class="hrg" placeholder="Rp"></td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <button class="btn btn-add" onclick="tambahBaris()">+ Tambah Baris Pesanan</button>
+    <button class="btn btn-preview" onclick="bukaPreview()">LIHAT PRATINJAU NOTA</button>
+</div>
+
+<div id="modalPreview">
+    <div class="no-print" style="text-align: center; margin-bottom: 20px;">
+        <button onclick="tutupPreview()" style="background: #e74c3c; color: white; border: none; padding: 10px 25px; border-radius: 30px; cursor: pointer; font-weight: bold;">❌ EDIT LAGI</button>
+        <button onclick="eksekusiCetak()" style="background: #27ae60; color: white; border: none; padding: 10px 25px; border-radius: 30px; cursor: pointer; font-weight: bold; margin-left: 15px;">🖨️ CETAK NOTA</button>
+    </div>
+    
+    <div class="preview-content" id="areaCetak">
+        </div>
+</div>
+
+<script>
+    function tambahBaris() {
+        const tbody = document.querySelector("#tabelItem tbody");
+        const row = tbody.insertRow();
+        row.innerHTML = `<td><input type="text" class="nama"></td>
+                         <td><input type="number" class="qty" value="1"></td>
+                         <td><input type="number" class="hrg"></td>`;
+    }
+
+    function bukaPreview() {
+        const cust = document.getElementById('cust').value || "Umum";
+        const rows = document.querySelectorAll("#tabelItem tbody tr");
+        let htmlItem = "";
+        let total = 0;
+
+        rows.forEach(row => {
+            const nama = row.querySelector('.nama').value;
+            const qty = row.querySelector('.qty').value;
+            const hrg = row.querySelector('.hrg').value;
+            
+            if(nama && hrg) {
+                const sub = qty * hrg;
+                total += sub;
+                htmlItem += `
+                    <tr>
+                        <td style="padding: 5px 0; border-bottom: 1px solid #eee;">${nama}</td>
+                        <td style="padding: 5px 0; border-bottom: 1px solid #eee; text-align: center;">${qty}</td>
+                        <td style="padding: 5px 0; border-bottom: 1px solid #eee; text-align: right;">${parseInt(hrg).toLocaleString('id-ID')}</td>
+                        <td style="padding: 5px 0; border-bottom: 1px solid #eee; text-align: right;">${sub.toLocaleString('id-ID')}</td>
+                    </tr>`;
+            }
+        });
+
+        // Set Nama File PDF via Title
+        const tgl = new Date().toLocaleDateString('id-ID').replace(/\//g, '-');
+        document.title = "Nota_Manual_" + cust.replace(/\s+/g, '_') + "_" + tgl;
+
+        const template = `
+            <div style="position: relative; height: 100%; display: flex; flex-direction: column; color: #333;">
+                <img src="/uploads/<%= config.logo_path %>" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); opacity: 0.05; width: 180px; z-index: 0;">
+                
+                <div style="display: flex; align-items: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px; z-index: 1;">
+                    <img src="/uploads/<%= config.logo_path %>" style="width: 45px; height: 45px; margin-right: 10px; object-fit: contain;">
+                    <div style="flex-grow:1">
+                        <h2 style="margin:0; font-size: 14px; text-transform: uppercase;"><%= config.nama_perusahaan %></h2>
+                        <p style="margin:1px 0; font-size: 9px;">${'<%= config.alamat %>'.replace(/\n/g, ' ')}</p>
+                        <p style="margin:1px 0; font-size: 9px; font-weight: bold;">WA: <%= config.no_hp %></p>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 10px; z-index: 1;">
+                    <span>Cust: <b>${cust}</b></span>
+                    <span>Tgl: ${new Date().toLocaleDateString('id-ID')}</span>
+                </div>
+
+                <div style="flex-grow: 1; z-index: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #333; text-align: left;">
+                                <th style="padding: 5px 0; width: 40%;">Item</th>
+                                <th style="padding: 5px 0; text-align:center; width: 10%;">Qty</th>
+                                <th style="padding: 5px 0; text-align:right; width: 20%;">Harga</th>
+                                <th style="padding: 5px 0; text-align:right; width: 30%;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${htmlItem}</tbody>
+                    </table>
+                </div>
+
+                <div style="z-index: 1; margin-top: auto;">
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; border-top: 1px solid #333; padding-top: 5px;">
+                        <span>GRAND TOTAL:</span>
+                        <span>Rp ${total.toLocaleString('id-ID')}</span>
+                    </div>
+
+                    <div style="margin-top: 15px; display: flex; justify-content: space-between; font-size: 9px; text-align: center;">
+                        <div style="width: 45%;">Penerima<br><br><br>( ................. )</div>
+                        <div style="width: 45%;">Hormat Kami<br><br><br>( ................. )</div>
+                    </div>
+                    <p style="text-align: center; font-size: 7px; font-style: italic; margin-top: 8px; color: #777;">
+                        * Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.
+                    </p>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('areaCetak').innerHTML = template;
+        document.getElementById('modalPreview').style.display = 'block';
+    }
+
+    function tutupPreview() {
+        document.getElementById('modalPreview').style.display = 'none';
+    }
+
+    function eksekusiCetak() {
+        window.print();
+    }
+</script>
+
+</body>
+</html>

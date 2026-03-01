@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cetak Slip Gaji - <%= config.nama_perusahaan %></title>
+    <style>
+        /* Pengaturan Kertas A5 Landscape */
+        @page { 
+            size: A5 landscape; 
+            margin: 0; 
+        }
+
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif; 
+            background: #fff;
+        }
+
+        /* Container bagi 4 (Grid 2x2) */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 1fr 1fr;
+            width: 210mm; 
+            height: 148mm;
+            box-sizing: border-box;
+        }
+
+        .slip-box {
+            position: relative;
+            overflow: hidden;
+            border: 0.5px dashed #ccc;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+        }
+
+        /* Watermark Logo */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-25deg);
+            width: 110px;
+            opacity: 0.07; 
+            z-index: 0;
+        }
+
+        .content {
+            position: relative;
+            z-index: 1; 
+        }
+
+        .header-slip {
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 4px;
+        }
+
+        table {
+            width: 100%;
+            font-size: 9px;
+            border-collapse: collapse;
+        }
+
+        td { padding: 2px 0; line-height: 1.2; }
+        .text-right { text-align: right; }
+        .text-muted { color: #666; font-size: 8px; }
+        .total-row {
+            border-top: 1px solid #000;
+            font-weight: bold;
+            font-size: 10px;
+            padding-top: 4px;
+        }
+        .text-danger { color: red; }
+    </style>
+</head>
+<body onload="window.print()"> 
+    <div class="grid-container">
+        <% dataGaji.forEach(op => { %>
+            <div class="slip-box">
+                <img src="/uploads/<%= config.logo_path %>" class="watermark">
+
+                <div class="content">
+                    <div class="header-slip">
+                        SLIP GAJI - <%= config.nama_perusahaan %><br>
+                        <small style="font-weight: normal;">Periode: <%= tgl_awal %> s/d <%= tgl_akhir %></small>
+                    </div>
+                    
+                    <table style="margin-bottom: 6px; border-bottom: 0.5px solid #eee;">
+                        <tr>
+                            <td>Nama: <strong><%= op.nama %></strong></td>
+                            <td class="text-right">Jabatan: Operator</td>
+                        </tr>
+                    </table>
+
+                    <table>
+                        <tr>
+                            <td>
+                                Gaji Pokok <br>
+                                <span class="text-muted">(Rp <%= op.gp.toLocaleString('id-ID') %> x <%= op.hari_kerja %> Hari)</span>
+                            </td>
+                            <td class="text-right" style="vertical-align: bottom;">
+                                Rp <%= (op.gp * op.hari_kerja).toLocaleString('id-ID') %>
+                            </td>
+                        </tr>
+
+                        <% if (op.jam_sisa > 0) { %>
+                        <tr>
+                            <td>
+                                Jam Kerja Tambahan <br>
+                                <span class="text-muted">(Rp <%= (op.gp/8).toLocaleString('id-ID') %> x <%= op.jam_sisa %> Jam)</span>
+                            </td>
+                            <td class="text-right" style="vertical-align: bottom;">
+                                Rp <%= Math.round(op.gp/8 * op.jam_sisa).toLocaleString('id-ID') %>
+                            </td>
+                        </tr>
+                        <% } %>
+
+                        <tr>
+                            <td>
+                                Lembur <br>
+                                <span class="text-muted">(Rp <%= (op.gp/4).toLocaleString('id-ID') %> x <%= op.lembur %> Sesi)</span>
+                            </td>
+                            <td class="text-right" style="vertical-align: bottom;">
+                                Rp <%= (op.gp/4 * op.lembur).toLocaleString('id-ID') %>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td>Borongan & Bonus Target</td>
+                            <td class="text-right">Rp <%= op.borongan_bonus.toLocaleString('id-ID') %></td>
+                        </tr>
+
+                        <tr>
+                            <td>Potongan Kasbon</td>
+                            <td class="text-right text-danger">- Rp <%= op.kasbon.toLocaleString('id-ID') %></td>
+                        </tr>
+
+                        <tr class="total-row">
+                            <td style="padding-top: 5px;">TOTAL DITERIMA</td>
+                            <td class="text-right" style="padding-top: 5px;">
+                                Rp <%= Math.round(op.totalFinal).toLocaleString('id-ID') %>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="font-size: 8px; font-style: italic; margin-top: 10px; display: flex; justify-content: space-between; border-top: 0.5px solid #eee; padding-top: 4px;">
+                    <span>Dicetak: <%= new Date().toLocaleDateString('id-ID') %></span>
+                    <span style="text-align: right;">Penerima: ________________</span>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+</body>
+</html>

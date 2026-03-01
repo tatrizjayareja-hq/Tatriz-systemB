@@ -1,0 +1,126 @@
+<%- include('partials/header') %>
+<style>
+    .table-compact td { padding: 12px 8px; vertical-align: middle; font-size: 13px; }
+    .btn-pilih { padding: 4px 12px; font-size: 11px; font-weight: bold; border-radius: 6px; }
+    .badge-count { background: #f1f2f6; color: #57606f; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+</style>
+
+<div class="container mt-3" style="max-width: 800px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="/dashboard" class="text-decoration-none text-muted small">← Kembali</a>
+        <h6 class="mb-0 fw-bold">🧾 Daftar Piutang Customer</h6>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 table-compact">
+                <thead class="table-light">
+                    <tr>
+                        <th>CUSTOMER</th>
+                        <th class="text-end">SISA PIUTANG</th>
+                        <th class="text-center">AKSI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (daftar.length === 0) { %>
+                        <tr><td colspan="3" class="text-center text-muted">Semua piutang lunas 🎉</td></tr>
+                    <% } %>
+                    
+                    <% daftar.forEach(c => { %>
+                        <tr>
+                            <td>
+                                <strong class="d-block"><%= c.customer %></strong>
+                                <span class="badge-count"><%= c.total_po_aktif %> PO Aktif</span>
+                            </td>
+                            <td class="text-end text-danger fw-bold">
+                                Rp <%= c.sisa_piutang_customer.toLocaleString('id-ID') %>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-dark btn-pilih" onclick="showDetailPiutang('<%= c.customer %>')">
+                                    PILIH
+                                </button>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetail" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold" id="customerTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <form id="formCetakGabungan" action="/cetak-nota-gabungan" method="GET">
+                    <input type="hidden" name="customer" id="inputCustomer">
+                    <div id="listPO" style="max-height: 400px; overflow-y: auto;">
+                        </div>
+                    <div class="p-3 bg-light border-top">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">CETAK NOTA GABUNGAN</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Definisikan fungsi dulu
+    function showDetailPiutang(customer) {
+        console.log("Mencoba mengambil data untuk:", customer);
+        
+        // Pastikan modal diinisialisasi di DALAM fungsi jika variabel global gagal
+        const modalElement = document.getElementById('modalDetail');
+        const modalInstance = new bootstrap.Modal(modalElement);
+        
+        document.getElementById('customerTitle').innerText = customer;
+        document.getElementById('inputCustomer').value = customer;
+        const listDiv = document.getElementById('listPO');
+        
+        listDiv.innerHTML = '<div class="p-4 text-center small text-muted">Memuat data...</div>';
+        
+        // Tampilkan modal
+        modalInstance.show();
+        
+        fetch('/api/piutang-detail/' + encodeURIComponent(customer))
+            .then(res => {
+                if (!res.ok) throw new Error('Gagal ambil data ke server');
+                return res.json();
+            })
+            .then(data => {
+                if (data.length === 0) {
+                    listDiv.innerHTML = '<div class="p-4 text-center">Tidak ada PO aktif.</div>';
+                    return;
+                }
+                
+                let html = '';
+                data.forEach(po => {
+                    let sisa = po.total_harga_customer - po.telah_bayar;
+                    html += `
+                        <label class="d-flex align-items-center p-3 border-bottom mb-0" style="cursor: pointer;">
+                            <input type="checkbox" name="ids" value="${po.id}" checked class="form-check-input me-3" style="width: 20px; height: 20px;">
+                            <div style="flex:1;">
+                                <div class="fw-bold" style="font-size: 13px;">${po.nama_po}</div>
+                                <small class="text-muted" style="font-size: 10px;">${po.tanggal}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-danger fw-bold" style="font-size: 13px;">Rp ${sisa.toLocaleString('id-ID')}</div>
+                                <small class="text-muted" style="font-size: 9px;">Nota: Rp ${po.total_harga_customer.toLocaleString('id-ID')}</small>
+                            </div>
+                        </label>
+                    `;
+                });
+                listDiv.innerHTML = html;
+            })
+            .catch(err => {
+                console.error(err);
+                listDiv.innerHTML = '<div class="p-4 text-center text-danger">Gagal memuat data.</div>';
+            });
+    }
+</script>
+<%- include('partials/footer') %>

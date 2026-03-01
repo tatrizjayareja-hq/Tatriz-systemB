@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring CMT - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; }
+        .filter-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .grid-filter { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 20px; align-items: center; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; }
+        th { background: #59cf77; color: white; padding: 15px 12px; text-align: left; font-size: 14px; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        
+        .check-col { width: 40px; text-align: center; }
+        .clickable-row { cursor: pointer; transition: 0.2s; }
+        .clickable-row:hover { background: #f1fdf4; }
+
+        /* Style Laci (Detail) */
+        .detail-row { display: none; background: #fdfdfd; }
+        .detail-content { padding: 15px; border-left: 5px solid #e67e22; margin: 10px; background: white; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+
+        #bulkActionArea { display: none; background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #59cf77; align-items: center; justify-content: space-between; }
+        .btn-quick { background: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; margin: 2px; }
+        .btn-quick.qc { background: #f1c40f; color: #2c3e50; }
+        .btn-quick.lunas { background: #27ae60; }
+        .untung-text { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="/dashboard" style="text-decoration: none; color: #666; font-weight: bold;">← Kembali</a>
+        <h3 style="margin:0;">🚜 Monitoring Produksi CMT</h3>
+        <div style="width: 50px;"></div>
+    </div>
+
+    <div id="bulkActionArea">
+        <div><strong id="countSelected">0 PO Terpilih</strong></div>
+        <button onclick="prosesNotaGabungan()" style="background: #2c3e50; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;">📝 NOTA GABUNGAN</button>
+    </div>
+
+    <div class="filter-card">
+        <div class="grid-filter">
+            <input type="text" id="liveSearch" placeholder="Cari PO / Customer..." onkeyup="jalankanFilter()" style="padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+            <label style="cursor: pointer; font-weight: bold; text-align: center;"><input type="checkbox" id="checkLunas" onchange="jalankanFilter()"> Auto-Hide Selesai</label>
+            <div style="text-align: right; font-size: 11px; color: #888;">*Klik baris untuk lihat detail desain</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th class="check-col"><input type="checkbox" onclick="pilihSemua(this)"></th>
+                <th>Tgl</th>
+                <th>Nama PO & Customer</th>
+                <th>Total Keuntungan</th>
+                <th style="text-align: center;">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+    <% orders.forEach(po => { %>
+        <% 
+            // Ambil detail untuk PO ini
+            let subDetails = details.filter(d => d.po_id === po.id);
+            
+            // Hitung akumulasi biaya CMT (Jumlah x Harga CMT)
+            let totalBiayaCMT = subDetails.reduce((sum, sub) => sum + (sub.jumlah * sub.harga_cmt), 0);
+        %>
+        
+        <tr class="clickable-row" onclick="toggleDetail('<%= po.id %>')">
+            <td class="check-col" onclick="event.stopPropagation()">
+                <input type="checkbox" class="po-checkbox" value="<%= po.id %>" data-customer="<%= po.customer %>" onchange="updateCounter()">
+            </td>
+            <td style="font-size: 12px;"><%= po.tanggal.split('-').reverse().join('/') %></td>
+            <td>
+                <strong><%= po.nama_po %></strong><br>
+                <small style="color: #7f8c8d;"><%= po.customer %></small>
+            </td>
+            
+            <td style="color: #d63031; font-weight: bold;">
+                <small style="color: #999; font-weight: normal; font-size: 10px; display: block;">Biaya CMT:</small>
+                Rp <%= totalBiayaCMT.toLocaleString('id-ID') %>
+            </td>
+
+            <td class="untung-text">
+                <small style="color: #999; font-weight: normal; font-size: 10px; display: block;">Laba Bersih:</small>
+                Rp <%= po.total_untung.toLocaleString('id-ID') %>
+            </td>
+
+            <td style="text-align: center;" onclick="event.stopPropagation()">
+                <button class="btn-quick qc" onclick="updateStatus('<%= po.id %>', 'QC')">SET QC</button>
+                <button class="btn-quick lunas" onclick="updateStatus('<%= po.id %>', 'Lunas')">LUNAS</button>
+            </td>
+        </tr>
+
+        <tr id="detail-<%= po.id %>" class="detail-row">
+            <td colspan="6"> <div class="detail-content">
+                    <table style="width: 100%; font-size: 12px; background: none; box-shadow: none; border-radius: 0;">
+                        <thead style="background: #eee;">
+                            <tr>
+                                <th style="color: #333; background: none; padding: 8px;">Nama Desain</th>
+                                <th style="color: #333; background: none; padding: 8px;">Qty</th>
+                                <th style="color: #333; background: none; padding: 8px;">Hrg CMT</th>
+                                <th style="color: #333; background: none; padding: 8px;">Hrg Cust</th>
+                                <th style="color: #333; background: none; padding: 8px;">Keuntungan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% subDetails.forEach(sub => { %>
+                                <tr>
+                                    <td><%= sub.nama_desain %> (<%= sub.jenis_bordir %>)</td>
+                                    <td><%= sub.jumlah %></td>
+                                    <td>Rp <%= sub.harga_cmt.toLocaleString('id-ID') %></td>
+                                    <td>Rp <%= sub.harga_customer.toLocaleString('id-ID') %></td>
+                                    <td class="untung-text">Rp <%= (sub.jumlah * (sub.harga_customer - sub.harga_cmt)).toLocaleString('id-ID') %></td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        </tr>
+    <% }) %>
+</tbody>
+
+    <script>
+        function toggleDetail(id) {
+            const row = document.getElementById('detail-' + id);
+            row.style.display = (row.style.display === 'table-row') ? 'none' : 'table-row';
+        }
+
+        function updateStatus(id, status) {
+            if(confirm('Ubah status PO ini ke ' + status + '?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/update-status/' + id;
+                const input = document.createElement('input');
+                input.type = 'hidden'; input.name = 'status_baru'; input.value = status;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        function jalankanFilter() {
+            let input = document.getElementById("liveSearch").value.toLowerCase();
+            let rows = document.querySelectorAll("tbody tr.clickable-row");
+            rows.forEach(row => {
+                let text = row.innerText.toLowerCase();
+                row.style.display = text.includes(input) ? "" : "none";
+            });
+        }
+
+        // --- Logika Checkbox & Nota Gabungan (Sama seperti po-data) ---
+        function updateCounter() {
+            const checked = document.querySelectorAll('.po-checkbox:checked');
+            document.getElementById('bulkActionArea').style.display = checked.length > 0 ? 'flex' : 'none';
+            document.getElementById('countSelected').innerText = checked.length + " PO Terpilih";
+        }
+
+        function pilihSemua(master) {
+            document.querySelectorAll('.po-checkbox').forEach(cb => cb.checked = master.checked);
+            updateCounter();
+        }
+
+        function prosesNotaGabungan() {
+            const checked = document.querySelectorAll('.po-checkbox:checked');
+            let ids = Array.from(checked).map(cb => cb.value);
+            window.open(`/cetak-nota-gabungan?ids=${ids.join(',')}`, '_blank');
+        }
+    </script>
+</body>
+</html>

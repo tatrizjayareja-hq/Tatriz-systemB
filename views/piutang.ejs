@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Piutang - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; margin: 0; }
+        .header { display: flex; align-items: center; margin-bottom: 20px; }
+        .card-piutang { background: white; padding: 15px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #d63031; }
+        .cust-name { font-weight: bold; font-size: 16px; color: #2d3436; }
+        .po-name { font-size: 13px; color: #636e72; }
+        .sisa-tagihan { color: #d63031; font-weight: bold; font-size: 15px; margin-top: 5px; }
+        .btn-bayar { background: #00b894; color: white; text-decoration: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; float: right; }
+        .total-rekap { background: #2d3436; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="/dashboard" style="text-decoration: none; color: #666; font-size: 20px;">← </a>
+    <h2 style="margin: 0 0 0 10px;">💸 Daftar Piutang</h2>
+</div>
+
+<% 
+    let totalPiutangSemua = 0;
+    daftarPiutang.forEach(p => totalPiutangSemua += (p.total_harga_customer - p.total_bayar));
+%>
+
+<div class="total-rekap">
+    <small>TOTAL SEMUA PIUTANG</small><br>
+    <strong style="font-size: 22px;">Rp <%= totalPiutangSemua.toLocaleString() %></strong>
+</div>
+
+<% if (daftarPiutang.length === 0) { %>
+    <p style="text-align: center; color: #636e72;">✅ Semua tagihan lunas!</p>
+<% } %>
+
+<% daftarPiutang.forEach(p => { 
+    let sisa = p.total_harga_customer - p.total_bayar;
+%>
+<div class="card-piutang">
+    <a href="/edit-po/<%= p.id %>" class="btn-bayar">Detail / Edit</a>
+    <div class="cust-name"><%= p.customer %></div>
+    <div class="po-name"><%= p.nama_po %> (Status: <%= p.status %>)</div>
+    <div class="sisa-tagihan">Sisa: Rp <%= sisa.toLocaleString() %></div>
+    <small style="color: #b2bec3;">Total PO: Rp <%= p.total_harga_customer.toLocaleString() %></small>
+</div>
+<% }) %>
+
+</body>
+</html>

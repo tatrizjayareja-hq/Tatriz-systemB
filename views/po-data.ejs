@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Pesanan - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; }
+        .filter-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .grid-filter { display: grid; grid-template-columns: 2fr 1.5fr 1fr 1fr; gap: 20px; align-items: center; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        th { background: #59cf77; color: white; padding: 15px 12px; text-align: left; font-size: 14px; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .check-col { width: 40px; text-align: center; }
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+        #bulkActionArea { display: none; background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #59cf77; align-items: center; justify-content: space-between; }
+        .detail-row { display: none; background: #fdfdfd; }
+        .detail-content { padding: 20px; border-left: 5px solid #59cf77; margin: 10px; background: white; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        .clickable-row { cursor: pointer; transition: 0.2s; }
+        .clickable-row:hover { background: #f1fdf4; }
+        .status-select { padding: 6px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; }
+        .btn-update { background: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+        .action-dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; right: 0; background-color: #ffffff; min-width: 160px; box-shadow: 0px 8px 16px rgba(0,0,0,0.15); z-index: 100; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
+        .dropdown-content a, .dropdown-content button { color: #333; padding: 12px 15px; text-decoration: none; display: block; font-size: 13px; text-align: left; width: 100%; border: none; background: none; cursor: pointer; }
+        .dropdown-content a:hover, .dropdown-content button:hover { background-color: #f8f9fa; color: #59cf77; }
+        .show { display: block; }
+        .btn-opsi { background: #2c3e50; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+        .badge-variasi { font-size: 10px; color: #e67e22; background: #fff3e0; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+        @media (max-width: 768px) { .grid-filter { grid-template-columns: 1fr; } table { font-size: 12px; } }
+    </style>
+</head>
+<body>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <a href="/dashboard" style="text-decoration: none; color: #666; font-weight: bold;">← Kembali ke Dashboard</a>
+        <a href="/po-baru" style="background: #59cf77; color: white; text-decoration: none; padding: 12px 25px; border-radius: 10px; font-weight: bold; box-shadow: 0 4px 10px rgba(89, 207, 119, 0.3);">➕ INPUT PO BARU</a>
+    </div>
+
+    <div id="bulkActionArea">
+        <div>
+            <strong id="countSelected" style="color: #2e7d32;">0 PO Terpilih</strong>
+            <span style="font-size: 13px; color: #666; margin-left: 10px;">(Hanya untuk customer yang sama)</span>
+        </div>
+        <button onclick="prosesNotaGabungan()" style="background: #2c3e50; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">📝 BUAT NOTA GABUNGAN</button>
+    </div>
+
+    <div class="filter-card">
+        <div class="grid-filter">
+            <div>
+                <label style="font-size: 12px; font-weight: bold; color: #666;">Cari Nama PO / Customer</label>
+                <input type="text" id="liveSearch" placeholder="Ketik nama..." onkeyup="jalankanFilter()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-top: 5px;">
+            </div>
+            <div>
+                <label style="font-size: 12px; font-weight: bold; color: #666;">Filter Status</label>
+                <select id="filterStatus" onchange="jalankanFilter()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-top: 5px; background: white;">
+                    <option value="ALL">-- Semua Status --</option>
+                    <option value="Design">Design</option>
+                    <option value="Produksi">Produksi</option>
+                    <option value="CMT">CMT (Luar)</option>
+                    <option value="QC">QC</option>
+                    <option value="Clear">Clear</option>
+                    <option value="DP/Cicil">DP/Cicil</option>
+                    <option value="Lunas">Lunas</option>
+                </select>
+            </div>
+            <div style="text-align: center; padding-top: 20px;">
+                <label style="cursor: pointer; font-weight: bold; color: #444;">
+                    <input type="checkbox" id="checkLunas" onchange="sinkronLunas(this)"> Auto-Hide Lunas
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead style="background: #f8f9fa;">
+            <tr>
+                <th style="color: #666;">Jenis</th>
+                <th style="color: #666;">Nama Desain</th>
+                <th style="color: #666; text-align: center;">Qty</th>
+                
+                <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                    <th style="color: #2c3e50; text-align: right;">Harga Op</th>
+                    <th style="color: #2c3e50; text-align: right;">Total Op</th>
+                <% } %>
+
+                <th style="color: #666; text-align: right;">Harga Cust</th>
+                <th style="color: #666; text-align: right;">Total Cust</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% orders.forEach(function(po) { %>
+                <tr class="clickable-row" onclick="toggleDetail('<%= po.id %>')">
+                    <td class="check-col" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="po-checkbox" value="<%= po.id %>" data-customer="<%= po.customer %>" onchange="updateCounter()">
+                    </td>
+                    <td style="font-size: 12px; color: #666;"><%= po.tanggal.split('-').reverse().join('/') %></td>
+                    <td>
+                        <strong style="color: #2c3e50;"><%= po.nama_po %></strong><br>
+                        <small style="color: #7f8c8d;"><%= po.customer %></small>
+                    </td>
+                    <td style="text-align: center;">
+                        <strong><%= (po.qty_tampil || 0) %></strong> Pcs
+                        <% if (po.variasi_jumlah > 1) { %>
+                            <br><span class="badge-variasi">Variasi</span>
+                        <% } %>
+                    </td>
+                    <td style="font-weight: bold; color: #27ae60;">Rp <%= (po.total_harga_customer || 0).toLocaleString('id-ID') %></td>
+                    <td onclick="event.stopPropagation()"> 
+                        <form action="/update-status/<%= po.id %>" method="POST" style="display: flex; gap: 5px;">
+                            <select name="status_baru" class="status-select">
+                                <option value="Design" <%= po.status === 'Design' ? 'selected' : '' %>>Design</option>
+                                <option value="Produksi" <%= po.status === 'Produksi' ? 'selected' : '' %>>Produksi</option>
+                                <option value="CMT" <%= po.status === 'CMT' ? 'selected' : '' %>>CMT (Luar)</option>
+                                <option value="QC" <%= po.status === 'QC' ? 'selected' : '' %>>QC</option>
+                                <option value="Clear" <%= po.status === 'Clear' ? 'selected' : '' %>>Clear</option>
+                                <option value="DP/Cicil" <%= po.status === 'DP/Cicil' ? 'selected' : '' %>>DP/Cicil</option>
+                                <option value="Lunas" <%= po.status === 'Lunas' ? 'selected' : '' %>>Lunas</option>
+                            </select>
+                            <button type="submit" class="btn-update">💾</button>
+                        </form>
+                    </td>
+                    <td style="text-align: center;" onclick="event.stopPropagation()">
+                        <div class="action-dropdown">
+                            <button class="btn-opsi" onclick="toggleMenu(event, '<%= po.id %>')">Menu ▼</button>
+                            <div id="menu-<%= po.id %>" class="dropdown-content">
+                                <button onclick="toggleDetail('<%= po.id %>')">👁️ Detail Desain</button>
+                                <a href="/edit-po/<%= po.id %>">📝 Edit Data PO</a>
+                                <a href="/cetak-nota/<%= po.id %>" target="_blank">📄 Nota Resmi (A6)</a>
+                                <a href="/cetak-nota-rinci/<%= po.id %>" target="_blank">📄 Nota Rinci</a>
+                                <a href="/delete-po/<%= po.id %>" style="color: #d63031;" onclick="return confirm('Hapus PO?')">❌ Hapus PO</a>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr id="detail-<%= po.id %>" class="detail-row">
+                    <td colspan="7"> 
+                        <div class="detail-content">
+                            <h5 style="margin: 0 0 10px 0; color: #2c3e50;">📦 Rincian Item Bordir</h5>
+                            <table style="width: 100%; border: 1px solid #eee; border-radius: 8px;">
+                                <thead style="background: #f8f9fa;">
+                                    <tr>
+                                        <th style="color: #666;">Jenis</th>
+                                        <th style="color: #666;">Nama Desain</th>
+                                        <th style="color: #666; text-align: center;">Qty</th>
+                                        <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                                            <th style="color: #2c3e50; text-align: right;">Harga Op</th>
+                                            <th style="color: #2c3e50; text-align: right;">Total Op</th>
+                                        <% } %>
+                                        <th style="color: #666; text-align: right;">Harga Cust</th>
+                                        <th style="color: #666; text-align: right;">Total Cust</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% details.forEach(function(sub) { %>
+                                        <% if (sub.po_id === po.id) { %>
+                                            <tr>
+                                                <td><%= sub.jenis_bordir %></td>
+                                                <td><strong><%= sub.nama_desain %></strong></td>
+                                                <td style="text-align: center;"><%= sub.jumlah %> Pcs</td>
+                                                
+                                                <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                                                    <td style="text-align: right;">Rp <%= (sub.harga_operator || 0).toLocaleString('id-ID') %></td>
+                                                    <td style="text-align: right; font-weight: bold;">
+                                                        <% var subtotalOp = (sub.jumlah || 0) * (sub.harga_operator || 0); %>
+                                                        Rp <%= subtotalOp.toLocaleString('id-ID') %>
+                                                    </td>
+                                                <% } %>
+
+                                                <td style="text-align: right;">Rp <%= (sub.harga_customer || 0).toLocaleString('id-ID') %></td>
+                                                <td style="text-align: right; font-weight: bold; color: #27ae60;">
+                                                    <% var subtotalCust = (sub.jumlah || 0) * (sub.harga_customer || 0); %>
+                                                    Rp <%= subtotalCust.toLocaleString('id-ID') %>
+                                                </td>
+                                            </tr>
+                                        <% } %>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+
+    <script>
+        function toggleDetail(id) {
+            const row = document.getElementById('detail-' + id);
+            row.style.display = (row.style.display === 'table-row') ? 'none' : 'table-row';
+        }
+        function toggleMenu(event, id) {
+            event.stopPropagation();
+            const allMenus = document.querySelectorAll('.dropdown-content');
+            allMenus.forEach(menu => {
+                if (menu.id !== 'menu-' + id) menu.classList.remove('show');
+            });
+            document.getElementById('menu-' + id).classList.toggle('show');
+        }
+        window.onclick = function(event) {
+            if (!event.target.matches('.btn-opsi')) {
+                const dropdowns = document.getElementsByClassName("dropdown-content");
+                for (let i = 0; i < dropdowns.length; i++) {
+                    dropdowns[i].classList.remove('show');
+                }
+            }
+        }
+        function sinkronLunas(cb) {
+            const dropStatus = document.getElementById('filterStatus');
+            if (cb.checked && dropStatus.value === 'Lunas') dropStatus.value = 'ALL';
+            jalankanFilter();
+        }
+        function jalankanFilter() {
+            let inputNama = document.getElementById("liveSearch").value.toLowerCase();
+            let inputStatus = document.getElementById("filterStatus").value;
+            let hideLunas = document.getElementById("checkLunas").checked;
+            localStorage.setItem('filterNama', inputNama);
+            localStorage.setItem('filterStatus', inputStatus);
+            localStorage.setItem('hideLunas', hideLunas);
+            let rows = document.querySelectorAll("tr.clickable-row");
+            rows.forEach(row => {
+                let textPO = row.cells[2].innerText.toLowerCase(); 
+                let statusSelect = row.querySelector("select[name='status_baru']");
+                let currentStatus = statusSelect ? statusSelect.value : "";
+                let matchNama = textPO.includes(inputNama);
+                let matchStatus = (inputStatus === "ALL" || currentStatus === inputStatus);
+                let checkLunasHide = !(hideLunas && currentStatus === "Lunas");
+                if (matchNama && matchStatus && checkLunasHide) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                    let idAttr = row.getAttribute('onclick');
+                    if (idAttr) {
+                        let id = idAttr.match(/'([^']+)'/)[1];
+                        document.getElementById('detail-' + id).style.display = "none";
+                    }
+                }
+            });
+        }
+        window.onload = function() {
+            const savedNama = localStorage.getItem('filterNama');
+            const savedStatus = localStorage.getItem('filterStatus');
+            const savedLunas = localStorage.getItem('hideLunas');
+            if (savedStatus === null) {
+                document.getElementById('filterStatus').value = "Produksi";
+                document.getElementById('checkLunas').checked = true;
+            } else {
+                document.getElementById('liveSearch').value = savedNama || "";
+                document.getElementById('filterStatus').value = savedStatus;
+                document.getElementById('checkLunas').checked = (savedLunas === 'true');
+            }
+            jalankanFilter();
+        };
+        function updateCounter() {
+            const checked = document.querySelectorAll('.po-checkbox:checked');
+            const bar = document.getElementById('bulkActionArea');
+            const countLabel = document.getElementById('countSelected');
+            if (checked.length > 0) { bar.style.display = 'flex'; countLabel.innerText = checked.length + " PO Terpilih"; } 
+            else { bar.style.display = 'none'; document.getElementById('checkAll').checked = false; }
+        }
+        function pilihSemua() {
+            const master = document.getElementById('checkAll');
+            const checkboxes = document.querySelectorAll('.po-checkbox');
+            checkboxes.forEach(cb => {
+                const row = cb.closest('tr');
+                if (row.style.display !== 'none') { cb.checked = master.checked; }
+            });
+            updateCounter();
+        }
+        function prosesNotaGabungan() {
+            const checked = document.querySelectorAll('.po-checkbox:checked');
+            let ids = [];
+            let customers = new Set();
+            checked.forEach(cb => { ids.push(cb.value); customers.add(cb.getAttribute('data-customer')); });
+            if (customers.size > 1) { alert("❌ Gagal: Nota Gabungan hanya bisa dibuat untuk 1 Customer yang sama."); return; }
+            if (ids.length === 0) return;
+            window.open(`/cetak-nota-gabungan?ids=${ids.join(',')}`, '_blank');
+        }
+    </script>
+</body>
+</html>

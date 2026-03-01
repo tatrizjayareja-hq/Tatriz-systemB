@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Hasil Saya - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #e2e7e2; padding: 15px; margin: 0; }
+        .header-box { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        
+        /* Filter Styles */
+        .filter-input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-top: 10px; }
+
+        /* Table Styles */
+        .rekap-container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #2d3436; color: white; padding: 12px; text-align: left; font-size: 14px; }
+        
+        /* Row Utama (Tanggal) */
+        .row-tanggal { background: #fff; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
+        .row-tanggal:hover { background: #f9f9f9; }
+        .row-tanggal td { padding: 15px 12px; font-weight: bold; }
+        
+        /* Row Detail (Laci) */
+        .row-detail { display: none; background: #fdfdfd; }
+        .detail-box { padding: 10px; border-left: 4px solid #0984e3; margin: 5px 10px; background: white; border: 1px solid #eee; border-radius: 4px; }
+        .inner-table { width: 100%; font-size: 13px; margin-top: 5px; }
+        .inner-table th { background: #f1f2f6; color: #666; padding: 5px; }
+        .inner-table td { border-bottom: 1px solid #f1f1f1; padding: 8px 5px; font-weight: normal; }
+
+        .bonus-tag { background: #27ae60; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 5px; }
+        .arrow { float: right; transition: 0.3s; color: #0984e3; }
+        .rotate { transform: rotate(180deg); }
+    </style>
+</head>
+<body>
+    <div class="header-box">    
+        <h2 style="margin: 10px 0 5px 0;text-align:center;">Halo, <%= userName %>! 👋</h2>
+        <p style="margin: 0; color: #888; font-size: 13px;text-align:center">Berikut adalah rekap hasil kerja Anda.</p>       
+        <input type="text" id="filterInput" class="filter-input" placeholder="Cari Tanggal atau Nama PO..." onkeyup="liveFilter()">
+    </div>
+    <div class="header-box">
+        <a href="/operator" style="margin-top: 20px; text-align:right;background: #0984e3; color: white; padding: 5px 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">+ Input Hasil Lagi</a>
+        <a href="/logout" style="margin-top: 20px; text-align:right;background: #e30909; color: white; padding: 5px 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚪 Keluar</a>
+    </div>
+
+    <div class="rekap-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rekap Per Tanggal</th>
+                    <th style="text-align: right;">Total Upah</th>
+                </tr>
+            </thead>
+            <tbody id="rekapTable">
+                <% 
+                   // Mengelompokkan data berdasarkan tanggal di sisi tampilan (EJS)
+                   const grouped = {};
+                   rows.forEach(r => {
+                       if (!grouped[r.tanggal]) grouped[r.tanggal] = { items: [], total: 0 };
+                       grouped[r.tanggal].items.push(r);
+                       grouped[r.tanggal].total += (r.jumlah_setor * r.harga_operator);
+                   });
+
+                   Object.keys(grouped).forEach((tgl, index) => { 
+                       let dataHarian = grouped[tgl];
+                       let bonusHarian = 0;
+                       if (dataHarian.total >= 500000) {
+                           bonusHarian = 10000 + (Math.floor((dataHarian.total - 500000) / 100000) * 5000);
+                       }
+                %>
+                <tr class="row-tanggal" onclick="toggleLaci('<%= index %>')">
+                    <td>
+                        <span class="tgl-text"><%= tgl %></span>
+                        <% if(bonusHarian > 0) { %>
+                            <span class="bonus-tag">🎁 Bonus Rp <%= bonusHarian.toLocaleString() %></span>
+                        <% } %>
+                        <span class="arrow" id="arrow-<%= index %>">▼</span>
+                    </td>
+                    <td style="text-align: right;">
+                        Rp <%= dataHarian.total.toLocaleString() %>
+                    </td>
+                </tr>
+
+                <tr class="row-detail" id="laci-<%= index %>">
+                    <td colspan="2">
+                        <div class="detail-box">
+                            <table class="inner-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nama PO / Desain</th>
+                                        <th style="text-align: center;">Shift</th>
+                                        <th style="text-align: center;">Qty</th>
+                                        <th style="text-align: right;">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% dataHarian.items.forEach(item => { %>
+                                        <tr class="item-kerja">
+                                            <td class="po-text">
+                                                <b><%= item.nama_po %></b><br>
+                                                <small><%= item.jenis_bordir %> - <%= item.nama_desain %></small>
+                                            </td>
+                                            <td style="text-align: center;"><%= item.shift %></td>
+                                            <td style="text-align: center;"><%= item.jumlah_setor %></td>
+                                            <td style="text-align: right;">Rp <%= (item.jumlah_setor * item.harga_operator).toLocaleString() %></td>
+                                        </tr>
+                                    <% }) %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // FUNGSI BUKA TUTUP LACI
+        function toggleLaci(idx) {
+            const laci = document.getElementById('laci-' + idx);
+            const arrow = document.getElementById('arrow-' + idx);
+            
+            if (laci.style.display === 'table-row') {
+                laci.style.display = 'none';
+                arrow.classList.remove('rotate');
+            } else {
+                laci.style.display = 'table-row';
+                arrow.classList.add('rotate');
+            }
+        }
+
+        // FUNGSI LIVE FILTER
+        function liveFilter() {
+            let input = document.getElementById("filterInput").value.toLowerCase();
+            let table = document.getElementById("rekapTable");
+            let rows = table.getElementsByClassName("row-tanggal");
+            let details = table.getElementsByClassName("row-detail");
+
+            for (let i = 0; i < rows.length; i++) {
+                // Ambil teks dari Baris Tanggal dan Baris Detailnya
+                let tglText = rows[i].querySelector(".tgl-text").innerText.toLowerCase();
+                let poTexts = details[i].innerText.toLowerCase(); // Mencari juga di dalam detail (Nama PO)
+
+                if (tglText.includes(input) || poTexts.includes(input)) {
+                    rows[i].style.display = "";
+                    // Jika sedang mengetik, jangan paksa buka laci agar tidak berantakan
+                } else {
+                    rows[i].style.display = "none";
+                    details[i].style.display = "none"; // Sembunyikan detail jika baris utama hilang
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>

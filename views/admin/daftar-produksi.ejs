@@ -1,0 +1,146 @@
+<%- include('../partials/header') %>
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="bi bi-journal-text"></i> Daftar Log Produksi</h4>
+        <div class="d-flex gap-2">
+            <input type="month" id="filterBulan" class="form-control form-control-sm" 
+                   value="<%= bulanIni %>" onchange="location.href='?bulan='+this.value">
+            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-printer"></i> Cetak
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <input type="text" id="liveSearch" class="form-control" placeholder="Cari PO, Operator, atau Desain...">
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered align-middle mb-0" id="tabelProduksi" style="font-size: 13px;">
+                <thead class="table-primary text-uppercase text-center">
+                    <tr>
+                        <th>ID PROD</th>
+                        <th>Tanggal</th>
+                        <th>OP</th>
+                        <th>Shift</th>
+                        <th>Nama PO</th>
+                        <th>Nama Bordir</th>
+                        <th>Jenis</th>
+                        <th>Pemilik</th>
+                        <th>Jml</th>
+                        <th>Harga</th>
+                        <th>Total</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="bodyProduksi">
+                    <% dataProduksi.forEach(row => { 
+                        const isOver = row.TOTAL_SDH_SETOR > row.TARGET_PO;
+                    %>
+                    <tr class="<%= isOver ? 'table-danger' : '' %>">
+                        <td class="text-center text-muted">
+                            <% if (isOver) { %>
+                                <i class="bi bi-exclamation-triangle-fill text-danger" title="Over Produksi!"></i>
+                            <% } %>
+                            PR-<%= String(row.ID_PROD).padStart(3, '0') %>
+                        </td>
+                        <td><%= row.TANGGAL.split('-').reverse().join('/') %></td>
+                        <td class="fw-bold"><%= row.OP %></td>
+                        <td class="text-center"><%= row.SHIFT %></td>
+                        <td>
+                            <%= row.NAMA_PO %>
+                            <% if (isOver) { %>
+                                <br><small class="badge bg-danger" style="font-size: 9px;">Limit: <%= row.TARGET_PO %> (Real: <%= row.TOTAL_SDH_SETOR %>)</small>
+                            <% } %>
+                        </td>
+                        <td><%= row.NAMA_BORDIR %></td>
+                        <td><%= row.JENIS_BORDIR %></td>
+                        <td><%= row.PEMILIK %></td>
+                        <td class="text-center fw-bold"><%= row.JML %></td>
+                        <td class="text-end"><%= row.HARGA_PABRIK.toLocaleString('id-ID') %></td>
+                        <td class="text-end fw-bold text-success"><%= row.TOTAL_H_PABRIK.toLocaleString('id-ID') %></td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-warning" 
+                                    onclick="editProduksi('<%= row.ID_PROD %>', '<%= row.TANGGAL %>', '<%= row.SHIFT %>', '<%= row.JML %>')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" 
+                                    onclick="hapusProduksi('<%= row.ID_PROD %>', '<%= row.NAMA_PO %>')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEdit" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Data Produksi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/update-produksi" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="id_prod" id="edit_id">
+                    <div class="mb-3">
+                        <label>Tanggal</label>
+                        <input type="date" name="tanggal" id="edit_tanggal" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Shift</label>
+                        <select name="shift" id="edit_shift" class="form-select">
+                            <option value="Pagi">Pagi</option>
+                            <option value="Sore">Sore</option>
+                            <option value="Malam">Malam</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Jumlah Setor</label>
+                        <input type="number" name="jumlah" id="edit_jumlah" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function hapusProduksi(id, namaPO) {
+        if (confirm(`Apakah Anda yakin ingin menghapus data produksi untuk PO: ${namaPO}?`)) {
+            window.location.href = `/hapus-produksi/${id}`;
+        }
+    }
+
+    function editProduksi(id, tgl, shift, jml) {
+        document.getElementById('edit_id').value = id;
+        document.getElementById('edit_tanggal').value = tgl;
+        document.getElementById('edit_shift').value = shift;
+        document.getElementById('edit_jumlah').value = jml;
+        
+        // Memanggil modal bootstrap
+        var myModal = new bootstrap.Modal(document.getElementById('modalEdit'));
+        myModal.show();
+    }
+
+    document.getElementById('liveSearch').addEventListener('keyup', function() {
+        let val = this.value.toLowerCase();
+        let rows = document.querySelectorAll('#bodyProduksi tr');
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
+        });
+    });
+</script>
+
+<%- include('../partials/footer') %>

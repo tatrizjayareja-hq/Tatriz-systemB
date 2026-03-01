@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifikasi Admin - Tatriz SystemB</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --dark-green: #195e0b; --primary-green: #59cf77; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #195e0b 0%, #48b865 100%); 
+            display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; 
+        }
+        .auth-card { 
+            background: white; border-radius: 20px; overflow: hidden; 
+            display: flex; width: 700px; max-width: 95%; box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
+        }
+        .side-info { 
+            flex: 1; background: var(--dark-green); color: white; 
+            padding: 40px; display: flex; flex-direction: column; justify-content: center; text-align: center;
+        }
+        .side-form { flex: 1.2; padding: 40px; background: white; }
+        input { 
+            width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; 
+            border-radius: 8px; box-sizing: border-box; font-size: 16px; 
+        }
+        button { 
+            width: 100%; padding: 12px; background: var(--dark-green); color: white; 
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s;
+        }
+        button:hover { background: #48b865; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="side-info">
+            <i class="fas fa-shield-alt fa-4x" style="margin-bottom: 20px;"></i>
+            <h2>Area Terbatas</h2>
+            <p style="font-size: 14px; opacity: 0.8;">Hanya pemilik akun (Admin) yang dapat mengakses pengaturan sistem.</p>
+        </div>
+        <div class="side-form">
+            <h3>🔐 Verifikasi</h3>
+            <p style="font-size: 13px; color: #666;">Silakan masukkan Password Admin untuk <strong><%= config.nama_perusahaan %></strong></p>
+            <form action="/setup-auth" method="POST">
+                <input type="password" name="password" placeholder="Password Admin" required autofocus>
+                <button type="submit">BUKA PENGATURAN</button>
+            </form>
+            <a href="/dashboard" style="display: block; margin-top: 20px; text-align: center; font-size: 12px; color: #999; text-decoration: none;">Kembali ke Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

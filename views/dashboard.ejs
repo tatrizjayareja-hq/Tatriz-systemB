@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - <%= config.nama_perusahaan %></title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* CSS Tambahan untuk Gembok */
+        .menu-locked { opacity: 0.6; position: relative; }
+        .menu-locked i.bi-lock-fill { 
+            font-size: 12px; 
+            color: #f39c12; 
+            margin-left: auto; 
+        }
+        .border-aman { border-top: 4px solid #2ecc71; }
+        .border-kritis { border-top: 4px solid #ff4757; }
+        .badge-aman { background-color: #2ecc71; }
+        .badge-kritis { background-color: #ff4757; }
+        :root {
+            --primary: #2ecc71; --dark: #0a463c; --light: #ecf0ec;
+            --danger: #ff4757; --info: #3498db; --warning: #f39c12;
+        }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--light); color: var(--dark); padding-bottom: 50px; }
+        .top-nav { 
+            background: var(--dark); color: white; padding: 15px 20px; 
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .top-nav img { height: 30px; background: white; border-radius: 4px; padding: 2px; }
+        .container { padding: 15px; max-width: 800px; margin: auto; }
+        .card-finance { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+        .stat-item { background: white; padding: 10px 5px; border-radius: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .stat-item small { font-size: 9px; color: #7f8c8d; font-weight: bold; display: block; }
+        .stat-item b { font-size: 16px; color: var(--dark); }
+        .shortcut-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .btn-main { 
+            background: white; padding: 20px 10px; border-radius: 15px; text-decoration: none;
+            color: var(--dark); font-weight: bold; display: flex; flex-direction: column; 
+            align-items: center; gap: 8px; border: 1px solid #eee; transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }
+        .btn-main i { font-size: 24px; }
+        .menu-card { background: white; border-radius: 15px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .menu-item { 
+            display: flex; align-items: center; padding: 14px 20px; 
+            text-decoration: none; color: var(--dark); border-bottom: 1px solid #f1f1f1;
+            font-size: 14px;
+        }
+        .menu-item i { margin-right: 15px; color: #7f8c8d; font-size: 18px; width: 25px; text-align: center; }
+        .piutang-banner { background: var(--dark); color: white; padding: 20px; border-radius: 15px; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="/uploads/<%= config.logo_path %>" alt="Logo">
+            <span style="font-weight: 800; font-size: 14px; letter-spacing: 0.5px;"><%= config.nama_perusahaan %></span>
+        </div>
+        <a href="/logout" style="color: var(--danger); font-size: 20px;"><i class="bi bi-box-arrow-right"></i></a>
+    </nav>
+
+    <div class="container">
+
+        <% if (typeof jumlahMasalah !== 'undefined' && jumlahMasalah > 0) { %>
+            <a href="/laporan-produksi" style="text-decoration: none; background: #fff5f5; border: 1px solid var(--danger); padding: 12px; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <i class="bi bi-exclamation-triangle-fill" style="color: var(--danger); font-size: 20px;"></i>
+                <div style="flex: 1;">
+                    <strong style="color: var(--danger); font-size: 13px;">ADA MASALAH PRODUKSI</strong><br>
+                    <span style="color: #747d8c; font-size: 11px;"><%= jumlahMasalah %> rincian melebihi target. Cek sekarang!</span>
+                </div>
+            </a>
+        <% } %>
+
+        <div class="card-finance <%= uangKunci.statusAman ? 'border-aman' : 'border-kritis' %>">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <small style="font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 10px;">Saldo Kas Laci (Riil)</small>
+                    <h2 style="margin: 0; color: var(--dark); font-weight: 800;">Rp <%= uangKunci.saldoLaci.toLocaleString('id-ID') %></h2>
+                </div>
+                
+                <span class="status-badge <%= uangKunci.statusAman ? 'badge-aman' : 'badge-kritis' %>">
+                    <%= uangKunci.statusAman ? '🛡️ AMAN' : '⚠️ KRITIS' %>
+                </span>
+            </div>
+
+            <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px dotted #ddd;">
+                    <div>
+                        <small style="color: #95a5a6; font-size: 10px; font-weight: bold;">🔒 UANG DIKUNCI</small><br>
+                        <strong style="font-size: 13px;">Rp <%= uangKunci.totalUangDikunci.toLocaleString('id-ID') %></strong>
+                    </div>
+                    <div style="text-align: right;">
+                        <small style="color: #95a5a6; font-size: 10px; font-weight: bold;">💰 PROFIT SIAP TARIK</small><br>
+                        <strong style="font-size: 16px; color: var(--primary);">Rp <%= uangKunci.profitBolehAmbil.toLocaleString('id-ID') %></strong>
+                    </div>
+                </div>
+            <% } else { %>
+                <div onclick="ajakUpgrade('Analisis Profit Riil')" style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 12px; cursor: pointer; border: 1px dashed #ddd; text-align: center;">
+                    <span style="font-size: 11px; color: #7f8c8d; font-weight: bold;"><i class="bi bi-lock-fill"></i> Lihat Detail Uang Kunci & Profit Bersih</span>
+                    <br><small style="color: var(--primary); font-size: 9px;">Hanya Tersedia di Akun PRO</small>
+                </div>
+            <% } %>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item" style="border-bottom: 3px solid var(--warning);"><small>DESIGN</small><b><%= stats.jml_design %></b></div>
+            <div class="stat-item" style="border-bottom: 3px solid var(--info);"><small>PROSES</small><b><%= stats.jml_produksi %></b></div>
+            <div class="stat-item" style="border-bottom: 3px solid var(--primary);"><small>CLEAR</small><b><%= stats.jml_invoice %></b></div>
+            <div class="stat-item" style="border-bottom: 3px solid #e67e22;"><small>CICIL</small><b><%= stats.jml_cicil || 0 %></b></div>
+        </div>
+
+        <p style="font-weight: 800; font-size: 11px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px;">Aksi Cepat</p>
+        <div class="shortcut-grid">
+            <a href="/po-baru" class="btn-main" style="background: var(--dark); color: white; border: none;">
+                <i class="bi bi-plus-circle-fill" style="color: var(--primary);"></i>
+                <span>INPUT PO</span>
+            </a>
+            <a href="/input-kas" class="btn-main">
+                <i class="bi bi-wallet2" style="color: var(--info);"></i>
+                <span>INPUT KAS</span>
+            </a>
+        </div>
+
+        <p style="font-weight: 800; font-size: 11px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px;">Semua Laporan & Data</p>
+        <div class="menu-card">
+            <a href="/po-data" class="menu-item"><i class="bi bi-journal-text"></i> Data Pesanan (PO)</a>
+            <a href="/laporan-kas" class="menu-item"><i class="bi bi-cash-stack"></i> Laporan Keuangan</a>
+            <a href="/nota-manual" class="menu-item"><i class="bi bi-printer"></i> Cetak Nota Manual</a>
+            <a href="/piutang-customer" class="menu-item"><i class="bi bi-printer"></i> Cetak Nota / Customer</a>
+            <a href="/input-gaji" class="menu-item"><i class="bi bi-calculator"></i> Hitung Gaji Karyawan</a>
+            <a href="/daftar-produksi" class="menu-item"><i class="bi bi-list-check"></i> Log Produksi Harian</a>
+            <a href="/laporan-produksi" class="menu-item"><i class="bi bi-cpu"></i> Monitor Produksi</a>
+            <a href="/karyawan" class="menu-item"><i class="bi bi-people"></i> Manajemen Karyawan</a>            
+            <a href="/setup-auth" class="menu-item"><i class="bi bi-gear"></i> Pengaturan Sistem</a>
+
+            <div style="border-top: 2px dashed #eee; margin-top: 5px; padding-top: 5px; background: #fdfdfd;">
+                <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                    <a href="/performa-operator" class="menu-item"><i class="bi bi-bar-chart-line"></i> Performa Operator <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                    <a href="/admin/data-cmt" class="menu-item"><i class="bi bi-briefcase"></i> Data Order CMT <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                    <a href="/cek-balance" class="menu-item"><i class="bi bi-shield-check"></i> Cek Audit Balance <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                    <a href="/backup-database" class="menu-item" style="color: var(--warning);"><i class="bi bi-cloud-download"></i> Backup Database</a>
+                <% } else { %>
+                    <a href="javascript:void(0)" onclick="ajakUpgrade('Analisis Performa')" class="menu-item menu-locked">
+                        <i class="bi bi-bar-chart-line"></i> Performa Operator 
+                        <i class="bi bi-lock-fill"></i>
+                    </a>
+                    <a href="javascript:void(0)" onclick="ajakUpgrade('Pengelolaan CMT')" class="menu-item menu-locked">
+                        <i class="bi bi-briefcase"></i> Data Order CMT 
+                        <i class="bi bi-lock-fill"></i>
+                    </a>
+                    <a href="javascript:void(0)" onclick="ajakUpgrade('Audit Balance')" class="menu-item menu-locked">
+                        <i class="bi bi-shield-check"></i> Cek Audit Balance 
+                        <i class="bi bi-lock-fill"></i>
+                    </a>
+                    <a href="javascript:void(0)" onclick="ajakUpgrade('Cloud Backup')" class="menu-item menu-locked">
+                        <i class="bi bi-cloud-download"></i> Backup Database 
+                        <i class="bi bi-lock-fill"></i>
+                    </a>
+                <% } %>
+            </div>
+        </div>
+
+        <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+            <div class="piutang-banner">
+                <small style="color: #a4b0be; font-weight: bold; font-size: 10px; text-transform: uppercase;">Total Uang di Luar (Piutang)</small>
+                <h2 style="color: #ff4757; margin: 5px 0; font-weight: 800;">
+                    Rp <%= (totalPiutangSemua || 0).toLocaleString('id-ID') %>
+                </h2>
+                <a href="/piutang-customer" style="color: var(--primary); text-decoration: none; font-size: 11px; font-weight: bold;">BUAT PENAGIHAN SEKARANG →</a>
+            </div>
+        <% } %>
+
+        <div style="text-align: center; margin-top: 30px; opacity: 0.5; font-size: 10px;">
+            &copy; 2026 <%= config.nama_perusahaan %> | Tatriz Online v2.1
+        </div>
+
+    </div>
+
+    <script>
+        function ajakUpgrade(fitur) {
+            Swal.fire({
+                title: 'Fitur Terkunci!',
+                text: 'Fitur ' + fitur + ' hanya tersedia untuk pengguna Akun PRO. Tingkatkan performa manajemen bordir Anda sekarang!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#2ecc71',
+                cancelButtonColor: '#7f8c8d',
+                confirmButtonText: 'Hubungi Developer (Upgrade)',
+                cancelButtonText: 'Nanti Dulu'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Masukkan link WhatsApp Anda di sini
+                    window.open('https://wa.me/6281234567890?text=Halo%20Admin%20Tatriz,%20saya%20tertarik%20untuk%20upgrade%20ke%20Akun%20PRO', '_blank');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

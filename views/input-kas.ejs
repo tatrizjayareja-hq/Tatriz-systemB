@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Kas - Tatriz</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); max-width: 500px; margin: auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .btn-save { background: #e67e22; color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        .btn-save:hover { background: #d35400; }
+        .btn-batal { background: #95a5a6; color: white; border: none; padding: 10px; width: 100%; border-radius: 10px; margin-top: 5px; cursor: pointer; transition: 0.3s; }
+        .btn-batal:hover { background: #7f8c8d; }
+        .header { text-align: center; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="/laporan-kas" style="text-decoration: none; color: #666; float: left;">← Back</a>
+    <strong style="font-size: 18px;">💰 Input Arus Kas</strong>
+    <div style="clear: both;"></div>
+</div>
+
+<div class="card">
+    <form id="form-kas" action="/save-kas" method="POST" onsubmit="sessionStorage.removeItem('editDataKas')">
+        <input type="hidden" name="kas_id" id="kas_id">
+        
+        <div class="form-group">
+            <label>Tanggal Transaksi</label>
+            <input type="date" name="tanggal" id="tgl_skrg" required>
+        </div>
+
+        <div class="form-group">
+            <label>Jenis Transaksi</label>
+            <select name="jenis" id="select_jenis" onchange="updateKategori()" required>
+                <option value="">-- Pilih Jenis --</option>
+                <option value="PEMASUKAN">PEMASUKAN</option>
+                <option value="PENGELUARAN">PENGELUARAN</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Kategori (Transaksinya)</label>
+            <select name="kategori" id="select_kategori" onchange="cekKategoriPO()" required>
+                <option value="">-- Pilih Kategori --</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="group_po" style="display: none; background: #e8f4fd; padding: 10px; border-radius: 8px;">
+            <label>Pilih Pesanan (PO)</label>
+            <select name="po_id" id="select_po">
+                <option value="">-- Pilih PO yang Dibayar --</option>
+                <% pos.forEach(po => { %>
+                    <option value="<%= po.id %>">
+                        <%= po.nama_po %> - <%= po.customer %> (Tagihan: Rp <%= (po.total_harga_customer || 0).toLocaleString('id-ID') %>)
+                    </option>
+                <% }) %>
+            </select>
+            <small style="color: #0984e3;">* Memilih PO akan otomatis mengubah status PO menjadi Lunas/Cicil.</small>
+        </div>
+
+        <div class="form-group">
+            <label>Jumlah (Rp)</label>
+            <input type="number" name="jumlah" id="input_jumlah" placeholder="Contoh: 50000" required>
+        </div>
+
+        <div class="form-group">
+            <label>Keterangan / Catatan</label>
+            <textarea name="keterangan" id="input_keterangan" rows="2" placeholder="Catatan opsional..."></textarea>
+        </div>
+
+        <button type="submit" id="btn-submit-kas" class="btn-save">SIMPAN TRANSAKSI</button>
+
+        <button type="button" id="btn-batal-kas" class="btn-batal" style="display:none;" onclick="batalEdit()">
+            BATAL EDIT / BERSIHKAN FORM
+        </button>
+    </form>
+</div>
+
+<script>
+    // 1. Data Kategori
+    const kategoriData = {
+        "PEMASUKAN": ["PEMBAYARAN BORDIR", "MODAL", "HUTANG", "SARUTANGAN", "PEMASUKKAN LAIN"],
+        "PENGELUARAN": [
+            "BAYAR HUTANG", "BAYAR SEWA MESIN", "BELANJA PRODUKSI", "BENSIN", 
+            "BERAS", "BIAYA KONTRAKAN", "GAJI OPERATOR", "GAJI PENGURUS", 
+            "GALON", "GAS", "JATAH PROFIT OWNER", "LAIN - LAIN", "LISTRIK", 
+            "MAKAN/ SAYUR", "MIE, KOPI, GULA", "PIUTANG", "WIFI"
+        ]
+    };
+
+    // 2. Fungsi Update Kategori
+    function updateKategori() {
+        const jenis = document.getElementById('select_jenis').value;
+        const selectKategori = document.getElementById('select_kategori');
+        selectKategori.innerHTML = '<option value="">-- Pilih Kategori --</option>';
+        
+        if (jenis && kategoriData[jenis]) {
+            kategoriData[jenis].forEach(kat => {
+                const opt = document.createElement('option');
+                opt.value = kat;
+                opt.innerHTML = kat;
+                selectKategori.appendChild(opt);
+            });
+        }
+        cekKategoriPO();
+    }
+
+    // 3. Tampilkan/Sembunyikan PO
+    function cekKategoriPO() {
+        const kategori = document.getElementById('select_kategori').value;
+        const groupPO = document.getElementById('group_po');
+        groupPO.style.display = (kategori === "PEMBAYARAN BORDIR") ? 'block' : 'none';
+    }
+
+    // 4. Fungsi Batal Edit (MEMBERSIHKAN SEMUANYA)
+    function batalEdit() {
+        sessionStorage.removeItem('editDataKas'); // Hapus memori edit
+        window.location.href = '/input-kas';    // Reload halaman agar bersih total
+    }
+
+    // 5. Logic saat halaman dimuat
+    window.onload = function() {
+        const editData = sessionStorage.getItem('editDataKas');
+        
+        if (editData) {
+            const d = JSON.parse(editData);
+            
+            // Isi Form secara detail
+            document.getElementById('kas_id').value = d.id;
+            document.getElementById('tgl_skrg').value = d.tgl;
+            document.getElementById('select_jenis').value = d.jenis;
+            
+            updateKategori(); // Munculkan pilihan kategori sesuai jenisnya
+
+            document.getElementById('select_kategori').value = d.kat;
+            document.getElementById('input_jumlah').value = d.jml;
+            document.getElementById('input_keterangan').value = d.ket;
+            
+            // Penanganan PO ID
+            if(d.poId && d.poId !== 'null' && d.poId !== '') {
+                document.getElementById('group_po').style.display = 'block';
+                document.getElementById('select_po').value = d.poId;
+            }
+
+            // Ubah UI menjadi Mode Update
+            const btnSubmit = document.getElementById('btn-submit-kas');
+            btnSubmit.innerText = "UPDATE TRANSAKSI SEKARANG";
+            btnSubmit.style.background = "#3498db"; 
+            
+            document.getElementById('btn-batal-kas').style.display = 'block';
+        } else {
+            // Jika bukan mode edit, set tanggal hari ini
+            document.getElementById('tgl_skrg').valueAsDate = new Date();
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,138 @@
+<%- include('partials/header') %>
+
+<style>
+    .balance-container { max-width: 1050px; margin: 20px auto; font-family: 'Segoe UI', sans-serif; }
+    .balance-card { background: #fff; border-radius: 12px; border: none; overflow: hidden; }
+    .section-title { font-size: 11px; letter-spacing: 1px; color: #666; font-weight: 800; padding-bottom: 5px; margin-bottom: 15px; }
+    .balance-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #eee; }
+    .label-text { font-size: 13px; color: #444; font-weight: 600; }
+    .value-text { font-size: 14px; font-weight: 700; color: #2d3436; }
+    
+    /* Navigasi & Filter */
+    .filter-box { display: flex; align-items: center; gap: 10px; background: #fff; padding: 5px 15px; border-radius: 30px; border: 1px solid #ddd; }
+    .filter-box input { border: none; outline: none; font-size: 12px; font-weight: bold; color: #333; cursor: pointer; }
+    
+    .status-badge {
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+</style>
+
+<div class="balance-container px-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h5 class="fw-bold mb-0 text-dark">🛡️ Audit Keseimbangan Tatriz</h5>
+            <small class="text-muted">Memastikan aset seimbang dengan alokasi kewajiban.</small>
+        </div>
+        
+        <div class="d-flex align-items-center gap-3">
+            <form action="/cek-balance" method="GET" class="filter-box shadow-sm">
+                <span class="small text-muted fw-bold">Periode:</span>
+                <input type="month" name="bulan" value="<%= bulanIni %>" onchange="this.form.submit()">
+            </form>
+
+            <a href="/laporan-kas" class="btn btn-outline-secondary btn-sm rounded-pill px-3" style="font-size: 11px;">
+                <i class="bi bi-arrow-left"></i> Kembali ke Laporan
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="section-title text-uppercase fw-bold text-muted">1. Uang Yang Ada (Aset Riil)</div>
+            <div class="balance-card p-4 border-start border-4 border-primary shadow-sm h-100">
+                <div class="balance-item mb-2">
+                    <span class="label-text">Saldo Tunai di Laci (All-Time)</span>
+                    <span class="value-text text-dark">Rp <%= data.saldoLaci.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="balance-item mb-2">
+                    <span class="label-text">Piutang Produksi (Bulan Ini)</span>
+                    <span class="value-text text-primary">Rp <%= data.piutangProduksi.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="balance-item mb-3">
+                    <span class="label-text">Piutang / Kasbon Karyawan</span>
+                    <span class="value-text">Rp <%= data.kasbonKaryawan.toLocaleString('id-ID') %></span>
+                </div>
+                
+                <div class="total-footer bg-primary bg-opacity-10 border-top-0 rounded p-3 mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="total-label text-primary fw-bold small">TOTAL POTENSI DANA</span>
+                        <span class="total-value text-primary fw-bold" style="font-size: 1.2rem;">Rp <%= data.totalUangAda.toLocaleString('id-ID') %></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="section-title text-uppercase fw-bold text-muted">2. Alokasi Dana (Kewajiban & Profit)</div>
+            <div class="balance-card p-4 border-start border-4 border-danger shadow-sm h-100">
+                <div class="balance-item mb-2">
+                    <span class="label-text">Sisa Hutang Riil</span>
+                    <span class="value-text text-danger">Rp <%= data.sisaHutang.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="balance-item mb-2">
+                    <span class="label-text">Sisa Kewajiban Kontrakan</span>
+                    <span class="value-text <%= data.kontrakan <= 0 ? 'text-success' : 'text-danger' %>">
+                        Rp <%= data.kontrakan.toLocaleString('id-ID') %>
+                    </span>
+                </div>
+                <% if (data.kontrakan_terbayar > 0) { %>
+                    <div class="mb-2" style="font-size: 10px; color: #27ae60; margin-top: -10px;">
+                        (Sudah dicicil: Rp <%= data.kontrakan_terbayar.toLocaleString() %>)
+                    </div>
+                <% } %>
+
+                <div class="balance-item mb-2">
+                    <span class="label-text">Sisa Hutang Riil</span>
+                    <span class="value-text text-danger">Rp <%= data.sisaHutang.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="balance-item mb-2">
+                    <span class="label-text">Jatah HQ (Diambil Owner)</span>
+                    <span class="value-text text-warning">Rp <%= data.jatahSudahDiambil.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="balance-item mb-3">
+                    <span class="label-text text-success fw-bold">Sisa Profit Bersih</span>
+                    <span class="value-text text-success fw-bold">Rp <%= data.sisaProfitBersih.toLocaleString('id-ID') %></span>
+                </div>
+                
+                <div class="total-footer bg-danger bg-opacity-10 border-top-0 rounded p-3 mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="total-label text-danger fw-bold small">TOTAL ALOKASI AUDIT</span>
+                        <% 
+                            let totalAlokasi = data.sisaHutang + data.kontrakan + data.jatahSudahDiambil + data.sisaProfitBersih;
+                        %>
+                        <span class="total-value text-danger fw-bold" style="font-size: 1.2rem;">Rp <%= totalAlokasi.toLocaleString('id-ID') %></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 text-center">
+        <% if (Math.abs(data.totalUangAda - totalAlokasi) < 1) { %>
+            <span class="status-badge bg-success text-white">
+                <i class="bi bi-check-circle-fill"></i> Data Akurat & Seimbang (Balanced)
+            </span>
+        <% } else { %>
+            <span class="status-badge bg-warning text-dark">
+                <i class="bi bi-exclamation-triangle-fill"></i> Selisih Deteksi: Rp <%= (data.totalUangAda - totalAlokasi).toLocaleString('id-ID') %>
+            </span>
+        <% } %>
+    </div>
+
+    <div class="mt-5 p-3 bg-light rounded shadow-sm border-start border-4 border-info">
+        <div class="row align-items-center">
+            <div class="col-auto"><i class="bi bi-info-circle-fill text-info fs-4"></i></div>
+            <div class="col">
+                <small class="text-muted" style="font-size: 11px; display: block; line-height: 1.5;">
+                    <strong>Cara Membaca Audit:</strong> Sisi 1 mengumpulkan semua aset bulan ini (Uang di tangan + Piutang jalan). Sisi 2 membagi aset tersebut untuk melunasi kewajiban (Hutang & Sewa) serta jatah owner. Sisanya adalah <strong>Sisa Profit Bersih</strong> yang aman disimpan untuk kas perusahaan bulan depan.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

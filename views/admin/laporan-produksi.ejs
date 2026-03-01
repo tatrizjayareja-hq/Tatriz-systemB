@@ -1,0 +1,177 @@
+<%- include('../partials/header') %>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Monitor & Koreksi Produksi</h3>
+        <a href="/dashboard" class="btn btn-outline-secondary btn-sm"> Kembali</a>
+    </div>
+
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-body bg-light">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary text-white"><i class="bi bi-search"></i></span>
+                        <input type="text" id="liveSearch" class="form-control" placeholder="Ketik Nama PO atau Nama Desain untuk mencari secara langsung...">
+                    </div>
+                </div>
+                <div class="col-md-4 mt-2 mt-md-0">
+                    <div id="filterStatus" class="small text-muted">
+                        Menampilkan <span id="visibleCount" class="fw-bold text-primary"><%= ringkasan.length %></span> dari <span class="fw-bold"><%= ringkasan.length %></span> baris desain.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover shadow-sm align-middle" id="tableProduksi">
+            <thead class="table-dark">
+                <tr>
+                    <th>PO / Desain</th>
+                    <th>Progres (Setor/Target)</th>
+                    <th>Sisa</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+           <tbody id="productionBody">
+    <% ringkasan.forEach((row, index) => { 
+        let total = row.total_produksi || 0;
+        let target = row.target_po;
+        let selisih = total - target;
+        
+        let rowClass = "";
+        if (total > target) rowClass = "table-danger"; 
+        else if (total < target && total > 0) rowClass = "table-warning";
+    %>
+    <tr class="main-row <%= rowClass %>" data-search="<%= (row.nama_po + ' ' + row.nama_desain).toLowerCase() %>">
+        <td>
+            <strong><%= row.nama_po %></strong><br>
+            <small class="text-muted"><%= row.jenis_bordir %> - <%= row.nama_desain %></small>
+        </td>
+        <td><strong><%= total %></strong> / <%= target %></td>
+        <td>
+            <% if (selisih > 0) { %>
+                <span class="text-danger fw-bold">+<%= selisih %> (Lebih)</span>
+            <% } else if (selisih < 0) { %>
+                <span class="text-dark"><%= selisih %> (Kurang)</span>
+            <% } else { %>
+                <span class="text-success">Pas</span>
+            <% } %>
+        </td>
+        <td>
+            <% if (total > target) { %>
+                <span class="badge bg-danger">⚠️ TIDAK SINKRON</span>
+            <% } else if (total == target) { %>
+                <span class="badge bg-success">Selesai</span>
+            <% } else { %>
+                <span class="badge bg-warning text-dark">Proses</span>
+            <% } %>
+        </td>
+        <td>
+            <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#detail<%= index %>">
+                <i class="bi bi-pencil-square"></i> Koreksi
+            </button>
+        </td>
+    </tr>
+    
+    <tr class="collapse detail-row-container" id="detail<%= index %>">
+        <td colspan="5" class="bg-light p-3">
+            <div class="card card-body border-primary shadow-sm">
+                <h6 class="fw-bold text-primary mb-3"><i class="bi bi-clock-history"></i> Log Input & Pindah Desain:</h6>
+                <table class="table table-sm table-bordered bg-white">
+                    <thead class="table-secondary">
+                        <tr>
+                            <th>Tgl & Shift</th>
+                            <th>Operator & Tujuan Desain</th>
+                            <th>Jumlah</th>
+                            <th>Simpan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% 
+                            let logs = detailLog.filter(l => l.detail_id === row.detail_id); 
+                            logs.forEach(log => {
+                        %>
+                        <form action="/admin/update-produksi" method="POST">
+                            <input type="hidden" name="log_id" value="<%= log.id %>">
+                            <tr>
+                                <td style="width: 150px;">
+                                    <input type="date" name="tanggal_baru" value="<%= log.tanggal %>" class="form-control form-control-sm mb-1">
+                                    <select name="shift_baru" class="form-select form-select-sm">
+                                        <option value="Pagi" <%= log.shift === 'Pagi' ? 'selected' : '' %>>Pagi</option>
+                                        <option value="Siang" <%= log.shift === 'Siang' || log.shift === 'Sore' ? 'selected' : '' %>>Sore</option>
+                                        <option value="Malam" <%= log.shift === 'Malam' ? 'selected' : '' %>>Malam</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <div class="fw-bold small mb-1"><%= log.nama_lengkap %></div>
+                                    <select name="detail_id_baru" class="form-select form-select-sm" style="font-size: 11px; border-color: #3498db;">
+                                        <% 
+                                            // Menampilkan semua desain yang ada di PO ini saja
+                                            let listDesain = ringkasan.filter(r => r.nama_po === row.nama_po);
+                                            listDesain.forEach(dsn => { 
+                                        %>
+                                            <option value="<%= dsn.detail_id %>" <%= dsn.detail_id === log.detail_id ? 'selected' : '' %>>
+                                                Pindah ke: <%= dsn.nama_desain %> (<%= dsn.jenis_bordir %>)
+                                            </option>
+                                        <% }) %>
+                                    </select>
+                                </td>
+                                <td style="width: 90px;">
+                                    <input type="number" name="jumlah_baru" value="<%= log.jumlah_setor %>" class="form-control form-control-sm">
+                                </td>
+                                <td class="text-center" style="width: 100px;">
+                                    <div class="btn-group">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Simpan Perubahan"><i class="bi bi-check-lg"></i></button>
+                                        <a href="/admin/hapus-produksi/<%= log.id %>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus data ini? (Aksi ini tidak bisa dibatalkan)')" title="Hapus Permanen"><i class="bi bi-trash"></i></a>
+                                    </div>
+                                </td>
+                            </tr>
+                        </form>
+                        <% }) %>
+                    </tbody>
+                </table>
+                <small class="text-muted text-end">*Gunakan dropdown biru jika setoran operator masuk ke desain yang salah.</small>
+            </div>
+        </td>
+    </tr>
+    <% }) %>
+</tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('liveSearch');
+        const rows = document.querySelectorAll('.main-row');
+        const visibleCountText = document.getElementById('visibleCount');
+
+        searchInput.addEventListener('input', function() {
+            const filter = this.value.toLowerCase();
+            let count = 0;
+
+            rows.forEach(row => {
+                const text = row.getAttribute('data-search');
+                const detailId = row.querySelector('button').getAttribute('data-bs-target');
+                const detailRow = document.querySelector(detailId);
+
+                if (text.includes(filter)) {
+                    row.style.display = "";
+                    count++;
+                } else {
+                    row.style.display = "none";
+                    // Jika baris utama disembunyikan, pastikan detailnya juga tertutup
+                    if (detailRow.classList.contains('show')) {
+                        detailRow.classList.remove('show');
+                    }
+                }
+            });
+
+            visibleCountText.innerText = count;
+        });
+    });
+</script>
+
+<%- include('../partials/footer') %>

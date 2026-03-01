@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Nota - <%= po.nama_po %></title>
+    <style>
+        @media print { 
+            @page { 
+                size: 105mm 148mm; /* Ukuran A6 Portrait */
+                margin: 0; 
+            } 
+            body { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact;
+            } 
+            .no-print { display: none; }
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            background-color: #fff;
+        }
+
+        .nota-box { 
+            width: 105mm; 
+            height: 148mm; 
+            position: relative; 
+            padding: 8mm; 
+            box-sizing: border-box; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #eee; 
+        }
+        
+        .header-container { 
+            display: flex; 
+            align-items: center; 
+            border-bottom: 2px solid #333; 
+            padding-bottom: 8px; 
+            margin-bottom: 10px; 
+        }
+        .logo-header { 
+            width: 50px; 
+            height: 50px; 
+            object-fit: contain; 
+            margin-right: 10px; 
+        }
+        .company-info { flex-grow: 1; }
+        .company-info h2 { margin: 0; font-size: 14px; color: #2c3e50; text-transform: uppercase; }
+        .company-info p { margin: 1px 0; font-size: 9px; color: #333; line-height: 1.2; }
+
+        .label-nota { text-align: right; }
+        .label-nota h3 { margin: 0; color: #e67e22; font-size: 12px; }
+        .label-nota p { margin: 2px 0 0 0; font-size: 9px; }
+
+        .watermark { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%) rotate(-30deg);
+            opacity: 0.05; 
+            width: 200px; 
+            z-index: 0; 
+            pointer-events: none;
+        }
+
+        .content-area { position: relative; z-index: 1; flex-grow: 1; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 10px; }
+        th { background: #f8f9fa; border-bottom: 1px solid #333; padding: 6px; text-align: left; }
+        td { border-bottom: 1px solid #eee; padding: 8px 6px; text-align: left; }
+        
+        .footer-nota { 
+            margin-top: auto; 
+            padding-top: 10px;
+        }
+        
+        .total-box { 
+            margin-left: auto;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .total-row { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 2px;
+            font-size: 11px;
+        }
+        
+        .ttd-section { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-top: 15px; 
+            font-size: 10px; 
+            text-align: center; 
+        }
+        .ttd-box { width: 45%; }
+        .ttd-space { height: 35px; }
+
+        .warning-box {
+            color: #d63031; 
+            font-size: 8px; 
+            margin-top: 5px; 
+            background: #fff2f2; 
+            padding: 4px; 
+            border: 1px solid #ff7675; 
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nota-box">
+        <img src="/uploads/<%= config.logo_path %>" class="watermark">
+
+        <div class="header-container">
+            <img src="/uploads/<%= config.logo_path %>" class="logo-header">
+            <div class="company-info">
+                <h2><%= config.nama_perusahaan %></h2>
+                <p><%- config.alamat.replace(/\n/g, '<br>') %></p>
+                <p><strong>WA: <%= config.no_hp %></strong></p>
+            </div>
+            <div class="label-nota">
+                <h3>NOTA RESMI</h3>
+                <p>Tgl: <%= new Date().toLocaleDateString('id-ID') %></p>
+                <p>Cust: <strong><%= po.customer %></strong></p>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <% 
+                let qtys = details.map(d => d.jumlah);
+                let qtyKonsisten = qtys.every(q => q === qtys[0]); 
+                let qtyTampil = qtys[0] || 0; 
+                // Hitung harga satuan berdasarkan total dibagi qty tampil
+                let hargaSatuan = qtyTampil > 0 ? (po.total_harga_customer / qtyTampil) : 0;
+            %>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Deskripsi</th>
+                        <th style="text-align: center; width: 15%;">Qty</th>
+                        <th style="text-align: right; width: 20%;">Harga</th>
+                        <th style="text-align: right; width: 25%;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="vertical-align: top;">
+                            <strong><%= po.nama_po %></strong>
+                            <% if (!qtyKonsisten) { %>
+                                <div class="warning-box">
+                                    <strong>⚠️ Perbedaan Qty:</strong><br>
+                                    <%= details.map(d => d.nama_desain + ' (' + d.jumlah + ')').join(', ') %>
+                                </div>
+                            <% } %>
+                        </td>
+                        <td style="text-align: center;"><%= qtyTampil %> Pcs</td>
+                        <td style="text-align: right;">
+                            <%= hargaSatuan.toLocaleString('id-ID') %>
+                        </td>
+                        <td style="text-align: right; font-weight: bold;">
+                            <%= po.total_harga_customer.toLocaleString('id-ID') %>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-nota">
+            <div class="total-box">
+                <div class="total-row">
+                    <span>Total Tagihan:</span>
+                    <span>Rp <%= po.total_harga_customer.toLocaleString('id-ID') %></span>
+                </div>
+                <div class="total-row" style="color: #27ae60;">
+                    <span>Total Bayar:</span>
+                    <span>Rp <%= (po.total_bayar || 0).toLocaleString('id-ID') %></span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #333; margin: 4px 0;">
+                <div class="total-row" style="font-weight: bold; font-size: 13px;">
+                    <span>SISA:</span>
+                    <span>Rp <%= (po.total_harga_customer - (po.total_bayar || 0)).toLocaleString('id-ID') %></span>
+                </div>
+            </div>
+
+            <div style="font-size: 9px; font-style: italic; color: #555; text-align: center; border-top: 1px dashed #ccc; padding-top: 5px;">
+                Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.
+            </div>
+
+            <div class="ttd-section">
+                <div class="ttd-box">
+                    Penerima,
+                    <div class="ttd-space"></div>
+                    ( ............................ )
+                </div>
+                <div class="ttd-box">
+                    Hormat Kami,
+                    <div class="ttd-space"></div>
+                    ( ............................ )
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const namaCust = "<%= po.customer %>";
+            const namaPO = "<%= po.nama_po %>";
+            const tgl = new Date().toLocaleDateString('id-ID').replace(/\//g, '-');
+            
+            document.title = "Nota_" + namaCust.replace(/\s+/g, '_') + "_" + namaPO.replace(/\s+/g, '_') + "_" + tgl;
+            
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

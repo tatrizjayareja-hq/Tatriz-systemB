@@ -1,0 +1,26 @@
+<%- include('../partials/header.ejs') %>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Pilih Periode Gaji</h5>
+                </div>
+                <div class="card-body">
+                    <form action="/input-gaji" method="GET">
+                        <div class="mb-3">
+                            <label>Tanggal Mulai (Senin)</label>
+                            <input type="date" name="tgl_awal" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Tanggal Selesai (Minggu)</label>
+                            <input type="date" name="tgl_akhir" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Proses Hitung Gaji</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<%- include('../partials/footer') %>

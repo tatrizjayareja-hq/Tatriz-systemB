@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master User - Developer Tatriz</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .level-standard { background-color: #f1f2f6; color: #2d3436; border: 1px solid #ddd; }
+        .level-pro { background-color: #f1c40f; color: #000; border: 1px solid #d4ac0d; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; background: #f4f7f6; color: #2d3436;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h2 { color: #195e0b; display: flex; align-items: center; gap: 10px; }
+        p.subtitle { font-size: 14px; color: #636e72; margin-bottom: 20px; }
+        
+        table { 
+            width: 100%; border-collapse: collapse; background: white; 
+            border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #edf2f7; }
+        th { background: #195e0b; color: white; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .badge { 
+            padding: 5px 10px; border-radius: 6px; font-size: 11px; 
+            font-weight: bold; display: inline-block;
+        }
+        .bg-admin { background: #dfe6e9; color: #2d3436; }
+
+        .btn-action {
+            text-decoration: none; font-size: 11px; font-weight: bold;
+            padding: 6px 12px; border-radius: 6px; display: inline-block;
+            transition: 0.3s; cursor: pointer; border: 1px solid transparent;
+        }
+        .btn-reset { color: #f39c12; border-color: #f39c12; }
+        .btn-reset:hover { background: #f39c12; color: white; }
+        .btn-delete-user { color: #d63031; border-color: #d63031; }
+        .btn-delete-user:hover { background: #d63031; color: white; }
+        .btn-delete-tenant { background: #e74c3c; color: white; }
+        .btn-delete-tenant:hover { background: #c0392b; }
+
+        .back-link { display: inline-block; margin-top: 25px; color: #195e0b; text-decoration: none; font-weight: bold; font-size: 14px; }
+        tr:hover { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛠️ Master User Management <span style="font-size: 14px; font-weight: normal; color: #666;">(Developer Mode)</span></h2>
+        <p class="subtitle">Kelola Level, Reset Password, dan Data Perusahaan dalam ekosistem <strong>Tatriz System</strong>.</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Tenant ID</th>
+                    <th>Perusahaan</th>
+                    <th>Username</th>
+                    <th>Nama Lengkap</th>
+                    <th>Level</th>
+                    <th style="text-align: center;">Aksi Pengelolaan</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% users.forEach(function(u) { %>
+                    <tr>
+                        <td><strong>#<%= u.tenant_id %></strong></td>
+                        <td><%= u.nama_perusahaan || 'Tatriz Pusat' %></td>
+                        <td><code><%= u.username %></code></td>
+                        <td><%= u.nama_lengkap %></td>
+                        
+                        <td>
+                            <div style="display: flex; flex-direction: column; gap: 5px;">
+                                <span class="badge <%= u.level >= 2 ? 'level-pro' : 'level-standard' %>">
+                                    <%= u.level >= 2 ? '🚀 PRO' : '🌱 STANDARD' %> (Lvl <%= u.level %>)
+                                </span>
+
+                                <% if (u.tenant_id !== 1) { %>
+                                    <a href="/update-level/<%= u.tenant_id %>/<%= u.level == 1 ? 2 : 1 %>" 
+                                       style="font-size: 10px; color: #3498db; text-decoration: none; font-weight: bold;">
+                                        [ <%= u.level == 1 ? '🔼 Up ke Pro' : '🔽 Down ke Std' %> ]
+                                    </a>
+                                <% } %>
+                            </div>
+                        </td>
+
+                        <td>
+                            <div style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+                                <a href="javascript:void(0)" class="btn-action btn-reset" 
+                                   onclick="pemicuReset('<%= u.id %>', '<%= u.username %>')">
+                                    <i class="fas fa-key"></i> Reset
+                                </a>
+
+                                <a href="/delete-user-global/<%= u.id %>" class="btn-action btn-delete-user" 
+                                   onclick="return confirm('Hapus User Akun ini?')">
+                                    <i class="fas fa-user-minus"></i>
+                                </a>
+                                
+                                <% if (u.tenant_id !== 1) { %>
+                                    <a href="/delete-tenant-complete/<%= u.tenant_id %>" class="btn-action btn-delete-tenant" 
+                                       onclick="return confirm('PERINGATAN! Hapus TOTAL semua data perusahaan ini?')">
+                                        <i class="fas fa-trash-alt"></i> Hapus Toko
+                                    </a>
+                                <% } else { %>
+                                    <span style="color: #195e0b; font-weight: bold; font-size: 10px;"><i class="fas fa-crown"></i> OWNER</span>
+                                <% } %>
+                            </div>
+                        </td>
+                    </tr>
+                <% }); %>
+            </tbody>
+        </table>
+        
+        <a href="/dashboard" class="back-link">
+            <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
+        </a>
+    </div>
+
+    <script>
+        // FUNGSI POP-UP RESET PASSWORD
+        function pemicuReset(userId, username) {
+            Swal.fire({
+                title: 'Ganti Password',
+                text: 'Masukkan password baru untuk user: ' + username,
+                input: 'text',
+                inputPlaceholder: 'Password baru...',
+                showCancelButton: true,
+                confirmButtonText: 'Simpan',
+                confirmButtonColor: '#f39c12',
+                preConfirm: (pass) => {
+                    if (!pass) { Swal.showValidationMessage('Password tidak boleh kosong!'); }
+                    return pass;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Pastikan rute ini sesuai dengan yang ada di server.js
+                    window.location.href = `/developer/reset-pass/${userId}/${result.value}`;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

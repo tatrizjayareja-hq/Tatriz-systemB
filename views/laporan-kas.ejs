@@ -1,0 +1,165 @@
+<%- include('partials/header') %>
+<style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 10px; }
+    .card { background: white; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: none; }
+    .row-pemasukan { background-color: #f0fff4 !important; }
+    .row-pengeluaran { background-color: #fff5f5 !important; }
+    .text-pemasukan { color: #27ae60; font-weight: bold; }
+    .text-pengeluaran { color: #d63031; font-weight: bold; }
+    .compact-table td, .compact-table th { padding: 4px 8px !important; font-size: 11px; }
+    .text-profit { color: #2ecc71; font-weight: 800; }
+</style>
+
+<div class="container-fluid" style="max-width: 900px;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <a href="/dashboard" class="text-decoration-none text-muted small">← Dashboard</a>
+        <h5 class="mb-0 fw-bold">📊 Rapor Keuangan</h5>
+        <a href="/input-kas" class="btn btn-success btn-sm fw-bold">+ KAS</a>
+    </div>
+
+    <form action="/laporan-kas" method="GET" class="mb-2">
+        <input type="month" name="bulan" value="<%= bulanIni %>" class="form-control form-control-sm" onchange="this.form.submit()">
+    </form>
+
+    <div class="row g-2 mb-2">
+        <div class="col-md-7">
+            <div class="card shadow-sm mb-2" style="border-left: 5px solid #6c5ce7;">
+                <div class="card-body p-2">
+                    <small class="fw-bold text-uppercase" style="color: #6c5ce7; font-size: 10px;">💰 Performa Owner (Nett)</small>
+                    <div class="row text-center g-0 mt-1">
+                        <div class="col-6">
+                            <small class="text-muted d-block" style="font-size: 9px;">Hasil Kerja Mesin</small>
+                            <strong style="font-size: 12px;">Rp <%= nilaiProduksi.toLocaleString('id-ID') %></strong>
+                        </div>
+                        <div class="col-6 border-start">
+                            <small class="text-muted d-block" style="font-size: 9px;">Beban (Op + Stp)</small>
+                            <strong class="text-danger" style="font-size: 12px;">Rp <%= (totalBiaya + config.beban_tetap).toLocaleString('id-ID') %></strong>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-2 border-top pt-1 bg-dark rounded">
+                        <small class="fw-bold text-white" style="font-size: 9px;">HAK PROFIT OWNER BULAN INI:</small>
+                        <strong class="text-warning d-block" style="font-size: 18px;">
+                            Rp <%= estimasiProfit.toLocaleString('id-ID') %>
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm" style="border-left: 5px solid #e17055; background-color: #fff9f7;">
+                <div class="card-body p-2">
+                    <small class="fw-bold text-uppercase" style="color: #e17055; font-size: 10px;">🏥 Kewajiban Kas Saat Ini</small>
+                    <div class="row text-center g-0 mt-1">
+                        <div class="col-6">
+                            <small class="text-muted d-block" style="font-size: 9px;">Sisa Hutang (Total)</small>
+                            <strong class="text-danger" style="font-size: 11px;">Rp <%= sisaHutangRiil.toLocaleString('id-ID') %></strong>
+                        </div>
+                        <div class="col-6 border-start">
+                            <small class="text-muted d-block" style="font-size: 9px;">Sisa Kontrakan</small>
+                            <strong class="text-secondary" style="font-size: 11px;">
+                                <%= sisaBebanKontrakan <= 0 ? 'LUNAS' : 'Rp ' + sisaBebanKontrakan.toLocaleString('id-ID') %>
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card shadow-sm h-100">
+                <div class="p-2 bg-primary text-white fw-bold" style="font-size: 10px; border-radius: 12px 12px 0 0;">
+                    <i class="bi bi-calendar3"></i> OMZET HARIAN
+                </div>
+                <div class="table-responsive" style="max-height: 155px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0 compact-table">
+                        <tbody>
+                            <% monitorHarian.forEach(m => { %>
+                                <tr>
+                                    <td><%= m.tanggal.split('-').reverse().slice(0,2).join('/') %></td>
+                                    <td class="text-end fw-bold">Rp <%= m.total_harian.toLocaleString('id-ID') %></td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-2" style="border-left: 5px solid #0984e3; background: #eef7ff;">
+        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+            <div>
+                <small class="fw-bold text-uppercase" style="color: #0984e3; font-size: 10px;">🔍 Piutang Berjalan (Akumulatif)</small>
+                <h4 class="mb-0 fw-bold" style="color: #0984e3;">Rp <%= piutangBerjalan.toLocaleString('id-ID') %></h4>
+                <p class="mb-0 text-muted" style="font-size: 9px;">Total hasil kerja mesin yang belum dibayar pelanggan.</p>
+            </div>
+            <div class="text-primary opacity-25">
+                <i class="bi bi-person-badge-fill" style="font-size: 2.5rem;"></i>
+            </div>
+        </div>
+    </div>
+    <div class="card p-2 bg-dark text-white mb-2 shadow">
+        <div class="d-flex justify-content-between align-items-center px-2">
+            <small class="fw-bold" style="font-size: 10px; color: #aaa;">SALDO FISIK LACI (CASH ON HAND):</small>
+            <strong class="text-warning" style="font-size: 18px;">Rp <%= saldoRiil.toLocaleString('id-ID') %></strong>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 overflow-hidden">
+        <div class="card-header bg-white p-2">
+            <input type="text" id="liveSearch" class="form-control form-control-sm" placeholder="Cari rincian transaksi..." onkeyup="filterTabel()">
+        </div>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0" id="tabelKas" style="font-size: 12px;">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>TGL</th>
+                        <th>KATEGORI</th> 
+                        <th class="text-end">JUMLAH</th>
+                        <th class="text-center">AKSI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% rincianKas.forEach(item => { %>
+                        <tr class="<%= item.jenis === 'PEMASUKAN' ? 'row-pemasukan' : 'row-pengeluaran' %>">
+                            <td style="font-size: 10px;"><%= item.tanggal.split('-').reverse().join('/') %></td>
+                            <td>
+                                <strong><%= item.kategori %></strong><br>
+                                <small class="text-muted" style="font-size: 10px;"><%= item.keterangan %></small>
+                                <% if (item.customer) { %>
+                                    <span class="badge bg-info p-1" style="font-size: 9px;"><%= item.customer %></span>
+                                <% } %>
+                            </td>
+                            <td class="text-end <%= item.jenis === 'PEMASUKAN' ? 'text-pemasukan' : 'text-pengeluaran' %>">
+                                <%= item.jenis === 'PEMASUKAN' ? '+' : '-' %> <%= item.jumlah.toLocaleString('id-ID') %>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm p-0 px-1" onclick="persiapanEditKas('<%= item.id %>', '<%= item.tanggal %>', '<%= item.jenis %>', '<%= item.kategori %>', '<%= item.jumlah %>', '<%= item.keterangan %>', '<%= item.po_id %>')">✏️</button>
+                                    <a href="/hapus-kas/<%= item.id %>" class="btn btn-sm p-0 px-1" onclick="return confirm('Hapus?')">🗑️</a>
+                                </div>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterTabel() {
+        let input = document.getElementById("liveSearch").value.toLowerCase();
+        let rows = document.querySelectorAll("#tabelKas tbody tr");
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(input) ? "" : "none";
+        });
+    }
+
+    function persiapanEditKas(id, tgl, jenis, kat, jml, ket, poId) {
+        const data = { id, tgl, jenis, kat, jml, ket, poId: (poId === 'null' || !poId) ? "" : poId };
+        sessionStorage.setItem('editDataKas', JSON.stringify(data));
+        window.location.href = '/input-kas';
+    }
+</script>
+<%- include('partials/footer') %>
