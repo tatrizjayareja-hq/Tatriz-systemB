@@ -302,22 +302,24 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-// --- KONFIGURASI MULTER UNTUK VERCEL ---
-// --- KONFIGURASI PENYIMPANAN AMAN UNTUK VERCEL ---
+// --- KONFIGURASI MULTER JURUS PAMUNGKAS (ANTI EROFS) ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Jika jalan di server Vercel, arahkan ke folder /tmp (diizinkan)
-        // Jika jalan di laptop (Lokal), tetap gunakan folder public/uploads
+        // Jika di Vercel, arahkan ke /tmp. Jika lokal, ke public/uploads
+        // PENTING: Jangan biarkan multer membuat folder otomatis
         const dest = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'public', 'uploads');
         cb(null, dest);
     },
     filename: (req, file, cb) => {
-        // Beri nama file unik agar tidak bentrok
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
 
-const upload = multer({ storage: storage });
+// Pastikan Multer tidak mencoba membuat folder (mkdir) sendiri
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // Batas 5MB
+});
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
 app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
