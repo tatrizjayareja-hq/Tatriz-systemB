@@ -1,12 +1,17 @@
 const express = require('express');
 require('dotenv').config();
 const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-url'); // Pastikan package sudah di-install
+const supabaseUrl = process.env.SUPABASE_URL; // Tambahkan ini di Environment Variables Vercel
+const supabaseKey = process.env.SUPABASE_ANON_KEY; // Tambahkan ini di Environment Variables Vercel
+const supabase = createClient(supabaseUrl, supabaseKey);
 const path = require('path');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const session = require('express-session');
 const fs = require('fs');
 const bcrypt = require("bcryptjs");
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const port = process.env.PORT || 3000;
