@@ -32,7 +32,6 @@ const noCache = (req, res, next) => {
     next();
 };
 
-// 2. DATABASE INITIALIZATION
 // 2. DATABASE INITIALIZATION (HYBRID: SUPABASE & SQLITE)
 let db;
 
@@ -303,9 +302,13 @@ app.post('/register-tenant', (req, res) => {
 });
 
 // --- KONFIGURASI MULTER JURUS PAMUNGKAS (ANTI EROFS) ---
-const storage = process.env.VERCEL 
-    ? multer.memoryStorage() // Gunakan RAM jika di Vercel (Tanpa Folder)
-    : multer.diskStorage({   // Gunakan Folder jika di Laptop (Lokal)
+let upload;
+if (process.env.VERCEL) {
+    // Jika di Vercel, paksa pakai Memory (RAM), bukan Folder
+    upload = multer({ storage: multer.memoryStorage() });
+} else {
+    // Jika di Laptop, baru boleh pakai Folder
+    const storageLokal = multer.diskStorage({
         destination: (req, file, cb) => {
             cb(null, path.join(__dirname, 'public', 'uploads'));
         },
@@ -313,8 +316,8 @@ const storage = process.env.VERCEL
             cb(null, Date.now() + path.extname(file.originalname));
         }
     });
-
-const upload = multer({ storage: storage });
+    upload = multer({ storage: storageLokal });
+}
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
 app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
