@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const path = require('path');
 const bodyParser = require('body-parser');
 const multer = require('multer');
+const upload = multer({ storage });
 const session = require('express-session');
 const fs = require('fs');
 const bcrypt = require("bcrypt");
@@ -247,7 +248,6 @@ app.post('/register-tenant', (req, res) => {
 });
 
 // --- KONFIGURASI MULTER (SERVERLESS READY - MEMORY ONLY) ---
-const multer = require("multer");
 
 const upload = multer({
   storage: multer.memoryStorage(),
