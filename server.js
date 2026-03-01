@@ -302,10 +302,11 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-// --- BAGIAN CONFIG UPLOAD (Pastikan ini di luar rute/function manapun) ---
+// --- KONFIGURASI MULTER UNTUK VERCEL ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dest = process.env.VERCEL ? '/tmp' : 'public/uploads/';
+        // Vercel hanya mengizinkan tulis di folder /tmp
+        const dest = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'public/uploads');
         cb(null, dest);
     },
     filename: (req, file, cb) => {
@@ -314,7 +315,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- RUTE SAVE SETTINGS (Ganti kode lama Anda dengan ini) ---
+// Pastikan rute save-settings menggunakan variabel 'upload' yang baru
 app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
     const tId = req.session.tenantId; 
     const { nama_aplikasi, nama_perusahaan, alamat, no_hp, password_admin, target_bonus, beban_tetap, nominal_buffer } = req.body;
@@ -333,10 +334,7 @@ app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
     params.push(tId);
 
     db.run(sqlUpdate, params, (err) => {
-        if (err) {
-            console.error("Gagal update setting:", err.message);
-            return res.status(500).send("Gagal menyimpan pengaturan.");
-        }
+        if (err) return res.status(500).send("Gagal menyimpan pengaturan.");
         res.send("<script>alert('Pengaturan Berhasil Disimpan!'); window.location='/dashboard';</script>");
     });
 });
