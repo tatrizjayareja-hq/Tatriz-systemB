@@ -303,16 +303,20 @@ app.post('/register-tenant', (req, res) => {
 });
 
 // --- KONFIGURASI MULTER UNTUK VERCEL ---
+// --- KONFIGURASI PENYIMPANAN AMAN UNTUK VERCEL ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Vercel hanya mengizinkan tulis di folder /tmp
-        const dest = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'public/uploads');
+        // Jika jalan di server Vercel, arahkan ke folder /tmp (diizinkan)
+        // Jika jalan di laptop (Lokal), tetap gunakan folder public/uploads
+        const dest = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'public', 'uploads');
         cb(null, dest);
     },
     filename: (req, file, cb) => {
+        // Beri nama file unik agar tidak bentrok
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
+
 const upload = multer({ storage: storage });
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
