@@ -302,11 +302,23 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-app.post('/save-settings', isAdmin, multer({ dest: 'public/uploads/' }).single('logo'), (req, res) => {
-    const tId = req.session.tenantId; // Proteksi agar setting hanya update tenant sendiri
+// --- BAGIAN CONFIG UPLOAD (Pastikan ini di luar rute/function manapun) ---
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dest = process.env.VERCEL ? '/tmp' : 'public/uploads/';
+        cb(null, dest);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
+
+// --- RUTE SAVE SETTINGS (Ganti kode lama Anda dengan ini) ---
+app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
+    const tId = req.session.tenantId; 
     const { nama_aplikasi, nama_perusahaan, alamat, no_hp, password_admin, target_bonus, beban_tetap, nominal_buffer } = req.body;
     
-    // Cek apakah ada upload logo baru
     let sqlUpdate = `UPDATE settings SET 
         nama_aplikasi=?, nama_perusahaan=?, alamat=?, no_hp=?, 
         password_admin=?, target_bonus=?, beban_tetap=?, nominal_buffer=?`;
@@ -325,8 +337,6 @@ app.post('/save-settings', isAdmin, multer({ dest: 'public/uploads/' }).single('
             console.error("Gagal update setting:", err.message);
             return res.status(500).send("Gagal menyimpan pengaturan.");
         }
-        
-        // Setelah sukses, arahkan ke dashboard
         res.send("<script>alert('Pengaturan Berhasil Disimpan!'); window.location='/dashboard';</script>");
     });
 });
