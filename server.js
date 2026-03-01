@@ -64,22 +64,24 @@ app.use(session({
 db.serialize(() => {
     const pk = "SERIAL PRIMARY KEY"; 
     
-    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, ... )`);
-    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
-    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, () => {
-        db.get("SELECT count(*) as count FROM users", (err, row) => {
-            if (row && (row.count === 0 || row.count === '0')) {
-                db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', 'admin123', 'Administrator Tatriz', 'admin')`);
+    // Tambahkan array kosong [] sebagai parameter kedua jika tidak ada input data
+    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`, []);
+
+    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, [], () => {
+        db.get("SELECT count(*) as count FROM users", [], (err, row) => {
+            // Postgres mengembalikan count sebagai string/bigint, gunakan Number() agar aman
+            if (row && Number(row.count) === 0) {
+                db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', 'admin123', 'Administrator Tatriz', 'admin')`, []);
             }
         });
     });
-    db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`);
-    db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`);
-    db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`);
-    db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`);
-    db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`);
-});
 
+    db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`, []);
+    db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`, []);
+    db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`, []);
+    db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`, []);
+    db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`, []);
+});
 //--------------------------------------------------------------------------------------------//
 
 // --- 3. MIDDLEWARE PROTEKSI ---
@@ -157,24 +159,23 @@ function noCache(req, res, next) {
 // --- 5. ROUTES ---
 
 app.get('/', (req, res) => {
-    // Tambahkan pengaman agar tidak error jika tabel belum siap saat refresh pertama
-    db.run("SELECT 1", [], (err) => {
-        if (err) return res.send("Sedang menyiapkan database, silakan refresh halaman dalam 3 detik...");
+    // Langsung cek jumlah settings tanpa "SELECT 1" yang menggantung
+    db.get("SELECT COUNT(*) as jml FROM settings", [], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send("Database Error: " + err.message);
+        }
         
-        db.get("SELECT COUNT(*) as jml FROM settings", (err, row) => {
-            const isNewSystem = (row && (row.jml === 0 || row.count === 0));
+        const isNewSystem = (row && (Number(row.jml) === 0));
 
-            db.get("SELECT * FROM settings WHERE tenant_id = 1", (err, config) => {
-                res.render('login', { 
-                    config: config || { 
-                        logo_path: 'default.png', 
-                        nama_aplikasi: 'TATRIZ SYSTEM', 
-                        nama_perusahaan: 'Multi-Tenant System', 
-                        alamat: '-', 
-                        no_hp: '-' 
-                    }, 
-                    isNew: isNewSystem 
-                });
+        db.get("SELECT * FROM settings WHERE tenant_id = 1", [], (err, config) => {
+            res.render('login', { 
+                config: config || { 
+                    logo_path: 'default.png', 
+                    nama_aplikasi: 'TATRIZ SYSTEM', 
+                    nama_perusahaan: 'Multi-Tenant System' 
+                }, 
+                isNew: isNewSystem 
             });
         });
     });
