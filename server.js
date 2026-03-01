@@ -14,7 +14,6 @@ const session = require('express-session');
 const fs = require('fs');
 const bcrypt = require("bcryptjs");
 const { v4: uuidv4 } = require('uuid');
-
 const app = express();
 const port = process.env.PORT || 3000;
 
