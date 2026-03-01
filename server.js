@@ -32,96 +32,62 @@ const noCache = (req, res, next) => {
     next();
 };
 
-// 2. DATABASE INITIALIZATION (HYBRID: SUPABASE & SQLITE)
+// 2. DATABASE INITIALIZATION (OPTIMIZED FOR CLOUD)
 let db;
 
 if (process.env.DATABASE_URL) {
-    // KONEKSI KE SUPABASE (ONLINE)
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false } // Wajib untuk koneksi aman ke cloud
+        ssl: { rejectUnauthorized: false }
     });
     
-    // Wrapper agar perintah SQL PostgreSQL mirip dengan SQLite
     db = {
         run: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, cb),
         all: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => cb(err, res ? res.rows : [])),
         get: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => cb(err, res ? res.rows[0] : null)),
-        serialize: (fn) => fn() // PostgreSQL tidak butuh serialize
+        serialize: (fn) => fn()
     };
     console.log('🚀 Terhubung ke Cloud Database (Supabase).');
 } else {
-    // KONEKSI KE SQLITE (LOKAL)
+    // Hanya gunakan SQLite jika benar-benar di Laptop
     const sqlite3 = require('sqlite3').verbose();
-    db = new sqlite3.Database('./database/tatriz.db', (err) => {
-        if (err) console.error(err.message);
-        console.log('💻 Terhubung ke Local Database (SQLite).');
-    });
+    db = new sqlite3.Database('./database/tatriz.db');
+    console.log('💻 Terhubung ke Local Database (SQLite).');
 }
 
+// JALANKAN TABEL (Bungkus dengan pengecekan agar tidak tabrakan di Vercel)
 db.serialize(() => {
-    // Gunakan SERIAL PRIMARY KEY agar cocok dengan PostgreSQL (Supabase)
     const pk = process.env.DATABASE_URL ? "SERIAL PRIMARY KEY" : "INTEGER PRIMARY KEY AUTOINCREMENT";
-    // 1. Tabel Settings (Sekarang jadi pusat identitas toko)
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-        id ${pk}, 
-        tenant_id INTEGER UNIQUE, 
-        nama_aplikasi TEXT, 
-        nama_perusahaan TEXT, 
-        alamat TEXT, 
-        no_hp TEXT, 
-        logo_path TEXT, 
-        password_admin TEXT, 
-        target_bonus REAL DEFAULT 500000, 
-        nominal_bonus_dasar REAL DEFAULT 10000, 
-        kelipatan_bonus REAL DEFAULT 100000, 
-        nominal_bonus_lipat REAL DEFAULT 5000, 
-        pembagi_lembur REAL DEFAULT 4, 
-        nominal_buffer REAL DEFAULT 0, 
-        beban_tetap REAL DEFAULT 0,
-        level INTEGER DEFAULT 1
-    )`);
-
-    // 2. Tabel Users (Tanpa Foreign Key ke tenants)
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id ${pk}, 
-        tenant_id INTEGER, 
-        username TEXT UNIQUE, 
-        password TEXT, 
-        nama_lengkap TEXT, 
-        role TEXT, 
-        gaji_pokok REAL DEFAULT 0
-    )`, () => {
+    
+    // Pastikan query CREATE TABLE tetap jalan
+    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, () => {
         db.get("SELECT count(*) as count FROM users", (err, row) => {
-            if (row && row.count === 0) {
+            if (row && (row.count === 0 || row.count === '0')) {
                 db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', 'admin123', 'Administrator Tatriz', 'admin')`);
             }
         });
     });
 
-    // 3. Tabel Transaksi & Produksi
     db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`);
-    db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL, FOREIGN KEY(po_id) REFERENCES po_utama(id) ON DELETE CASCADE)`);
+    db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`);
     db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`);
-    db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER, FOREIGN KEY(operator_id) REFERENCES users(id), FOREIGN KEY(po_id) REFERENCES po_utama(id), FOREIGN KEY(detail_id) REFERENCES po_detail(id), FOREIGN KEY(mesin_id) REFERENCES mesin(id))`);
-    db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER, FOREIGN KEY(po_id) REFERENCES po_utama(id))`);
+    db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`);
+    db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`);
 
-    // 4. SISTEM INJEKSI OTOMATIS (Hanya jalan di SQLite)
-    if (!process.env.DATABASE_URL) {
+    // MATIKAN SISTEM INJEKSI OTOMATIS SAAT DI VERCEL
+    if (!process.env.VERCEL && !process.env.DATABASE_URL) {
         const tablesToInfect = ['users', 'po_utama', 'arus_kas', 'mesin', 'settings', 'hasil_kerja'];
         tablesToInfect.forEach(table => {
             db.all(`PRAGMA table_info(${table})`, (err, columns) => {
                 if (err) return;
-                const hasTenant = columns.some(col => col.name === 'tenant_id');
-                if (!hasTenant) {
+                if (!columns.some(col => col.name === 'tenant_id')) {
                     db.run(`ALTER TABLE ${table} ADD COLUMN tenant_id INTEGER DEFAULT 1`);
                 }
             });
         });
     }
-
-    // 5. Injeksi Kolom Level (Jika belum ada)
-    db.run(`ALTER TABLE settings ADD COLUMN level INTEGER DEFAULT 1`, (err) => {});
 });
 
 //--------------------------------------------------------------------------------------------//
