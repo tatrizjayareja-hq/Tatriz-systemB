@@ -303,23 +303,18 @@ app.post('/register-tenant', (req, res) => {
 });
 
 // --- KONFIGURASI MULTER JURUS PAMUNGKAS (ANTI EROFS) ---
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        // Jika di Vercel, arahkan ke /tmp. Jika lokal, ke public/uploads
-        // PENTING: Jangan biarkan multer membuat folder otomatis
-        const dest = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'public', 'uploads');
-        cb(null, dest);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
+const storage = process.env.VERCEL 
+    ? multer.memoryStorage() // Gunakan RAM jika di Vercel (Tanpa Folder)
+    : multer.diskStorage({   // Gunakan Folder jika di Laptop (Lokal)
+        destination: (req, file, cb) => {
+            cb(null, path.join(__dirname, 'public', 'uploads'));
+        },
+        filename: (req, file, cb) => {
+            cb(null, Date.now() + path.extname(file.originalname));
+        }
+    });
 
-// Pastikan Multer tidak mencoba membuat folder (mkdir) sendiri
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // Batas 5MB
-});
+const upload = multer({ storage: storage });
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
 app.post('/save-settings', isAdmin, upload.single('logo'), (req, res) => {
