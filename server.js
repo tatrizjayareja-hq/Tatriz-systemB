@@ -1,7 +1,28 @@
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
+
 const express = require('express');
 require('dotenv').config();
-const { Pool } = require('pg');
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+const db = {
+    run: (sql, params, cb) => {
+        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
+            if (cb) cb(err, res);
+        });
+    },
+    all: (sql, params, cb) => {
+        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
+            if (cb) cb(err, res ? res.rows : []);
+        });
+    },
+    get: (sql, params, cb) => {
+        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
+            if (cb) cb(err, res ? res.rows[0] : null);
+        });
+    },
+    serialize: (fn) => fn()
+};
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -36,34 +57,13 @@ app.use(session({
 }));
 
 // 2. DATABASE INITIALIZATION (STERIL)
-let db;
 
-if (process.env.DATABASE_URL) {
-    // MODE CLOUD (SUPABASE)
-    const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
-    
-    db = {
-        run: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, cb),
-        all: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => cb(err, res ? res.rows : [])),
-        get: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => cb(err, res ? res.rows[0] : null)),
-        serialize: (fn) => fn()
-    };
-    console.log('🚀 Terhubung ke Cloud Database (Supabase).');
-} else {
-    // MODE LOKAL (Hanya panggil sqlite3 jika DATABASE_URL tidak ada)
-    const sqlite3 = require('sqlite3').verbose();
-    db = new sqlite3.Database('./database/tatriz.db', (err) => {
-        if (err) console.error(err.message);
-        console.log('💻 Terhubung ke Local Database (SQLite).');
-    });
-}
 
 // Inisialisasi Tabel (Tanpa Injeksi Otomatis yang mencurigakan bagi Vercel)
 db.serialize(() => {
-    const pk = process.env.DATABASE_URL ? "SERIAL PRIMARY KEY" : "INTEGER PRIMARY KEY AUTOINCREMENT";
+    const pk = "SERIAL PRIMARY KEY"; 
+    
+    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, ... )`);
     db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
     db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, () => {
         db.get("SELECT count(*) as count FROM users", (err, row) => {
@@ -1887,3 +1887,4 @@ app.post('/proses-print-gaji', isAdmin, (req, res) => {
 
 // JALANKAN SERVER
 app.listen(port, () => console.log(`🚀 Aplikasi Tatriz berjalan di http://localhost:${port}`));
+module.exports = app;
