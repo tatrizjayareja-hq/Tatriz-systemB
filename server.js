@@ -11,9 +11,6 @@ const bcrypt = require('bcrypt');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Multer untuk Vercel
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
 // 1. KONFIGURASI DASAR
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
