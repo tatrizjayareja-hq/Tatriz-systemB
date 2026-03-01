@@ -1,7 +1,6 @@
 const express = require('express');
-require('dotenv').config(); // Membaca file .env
-const { Pool } = require('pg'); // Memanggil driver PostgreSQL
-const sqlite3 = require('sqlite3').verbose();
+require('dotenv').config();
+const { Pool } = require('pg');
 const path = require('path');
 const bodyParser = require('body-parser');
 const multer = require('multer');
@@ -9,14 +8,13 @@ const session = require('express-session');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // 1. KONFIGURASI DASAR
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
-//app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 app.use(session({
     secret: 'kunci-rahasia-tatriz',
@@ -25,18 +23,11 @@ app.use(session({
     cookie: { maxAge: 3600000 } 
 }));
 
-const noCache = (req, res, next) => {
-    res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-    res.header('Expires', '-1');
-    res.header('Pragma', 'no-cache');
-    next();
-};
-
-// 2. DATABASE INITIALIZATION (CLEAN CLOUD VERSION)
+// 2. DATABASE INITIALIZATION (STERIL)
 let db;
 
 if (process.env.DATABASE_URL) {
-    // DUNIA CLOUD: Hanya pakai PostgreSQL
+    // MODE CLOUD (SUPABASE)
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
@@ -48,19 +39,27 @@ if (process.env.DATABASE_URL) {
         get: (sql, params, cb) => pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => cb(err, res ? res.rows[0] : null)),
         serialize: (fn) => fn()
     };
-    console.log('🚀 Mode Cloud: Terhubung ke Supabase.');
+    console.log('🚀 Terhubung ke Cloud Database (Supabase).');
 } else {
-    // DUNIA LOKAL: Hanya pakai SQLite jika di laptop
-    const localSqlite = require('sqlite3').verbose();
-    db = new localSqlite.Database('./database/tatriz.db');
-    console.log('💻 Mode Lokal: Terhubung ke SQLite.');
+    // MODE LOKAL (Hanya panggil sqlite3 jika DATABASE_URL tidak ada)
+    const sqlite3 = require('sqlite3').verbose();
+    db = new sqlite3.Database('./database/tatriz.db', (err) => {
+        if (err) console.error(err.message);
+        console.log('💻 Terhubung ke Local Database (SQLite).');
+    });
 }
 
-// Jalankan pembuatan tabel dasar saja, HAPUS bagian "Injeksi Otomatis"
+// Inisialisasi Tabel (Tanpa Injeksi Otomatis yang mencurigakan bagi Vercel)
 db.serialize(() => {
     const pk = process.env.DATABASE_URL ? "SERIAL PRIMARY KEY" : "INTEGER PRIMARY KEY AUTOINCREMENT";
-    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
-    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`);
+    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
+    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, () => {
+        db.get("SELECT count(*) as count FROM users", (err, row) => {
+            if (row && (row.count === 0 || row.count === '0')) {
+                db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', 'admin123', 'Administrator Tatriz', 'admin')`);
+            }
+        });
+    });
     db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`);
     db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`);
     db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`);
@@ -245,24 +244,11 @@ app.post('/register-tenant', (req, res) => {
     });
 });
 
-// --- KONFIGURASI MULTER ANTI-ERROR VERCEL (GANTI TOTAL BARIS 305) ---
-let storage;
-
-if (process.env.VERCEL) {
-    // Jika di Vercel, simpan di RAM (Memory), bukan di folder fisik
-    storage = multer.memoryStorage();
-} else {
-    // Jika di laptop sendiri (Lokal), baru simpan ke folder public/uploads
-    storage = multer.diskStorage({
-        destination: (req, file, cb) => {
-            cb(null, path.join(__dirname, 'public', 'uploads'));
-        },
-        filename: (req, file, cb) => {
-            cb(null, Date.now() + path.extname(file.originalname));
-        }
-    });
-}
-
+// --- KONFIGURASI MULTER (MEMORY ONLY FOR VERCEL) ---
+const storage = process.env.VERCEL ? multer.memoryStorage() : multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, 'public', 'uploads')),
+    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+});
 const upload = multer({ storage: storage });
 
 // Pastikan rute save-settings menggunakan variabel 'upload' yang baru
