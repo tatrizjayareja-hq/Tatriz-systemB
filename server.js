@@ -114,27 +114,29 @@ app.use(async (req, res, next) => {
     res.locals.user = req.session; 
     
     // 1. Abaikan untuk halaman publik
-    if (['/', '/login', '/register'].includes(req.path) || req.path.startsWith('/uploads')) {
+    if (['/', '/login', '/register', '/register-tenant'].includes(req.path) || req.path.startsWith('/uploads')) {
         res.locals.config = { nama_aplikasi: "TATRIZ SYSTEM", nama_perusahaan: "Tatriz" };
         return next();
     }
 
-    const tId = req.session.tenantId;
-    
-    // 2. Jika sesi habis
-    if (!tId) {
-        res.locals.config = { nama_aplikasi: "TATRIZ SYSTEM", nama_perusahaan: "Tatriz" };
+    // 2. Ambil Tenant ID dari session dan pastikan dia ANGKA (Number)
+    const tIdRaw = req.session.tenantId;
+    if (!tIdRaw) {
+        res.locals.config = { nama_aplikasi: "Tatriz System", nama_perusahaan: "Tatriz" };
         return next();
     }
+    
+    // PAKSA JADI ANGKA MURNI
+    const tId = Number(tIdRaw);
 
     try {
         const bulanIni = new Date().toISOString().slice(0, 7);
 
-        // Ambil data secara paralel agar cepat
+        // Gunakan parameter yang sudah di-cast jadi Number
         const [configData, s, b] = await Promise.all([
-            db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId]),
-            db.get("SELECT SUM(CASE WHEN jenis = 'PEMASUKAN' THEN jumlah ELSE -jumlah END) as saldo FROM arus_kas WHERE tenant_id = ?", [tId]),
-            db.get("SELECT SUM(jumlah) as terbayar FROM arus_kas WHERE kategori = 'BIAYA KONTRAKAN' AND tanggal LIKE ? AND tenant_id = ?", [bulanIni + '%', tId])
+            db.get("SELECT * FROM settings WHERE tenant_id = $1", [tId]),
+            db.get("SELECT SUM(CASE WHEN jenis = 'PEMASUKAN' THEN jumlah ELSE -jumlah END) as saldo FROM arus_kas WHERE tenant_id = $1", [tId]),
+            db.get("SELECT SUM(jumlah) as terbayar FROM arus_kas WHERE kategori = 'BIAYA KONTRAKAN' AND tanggal LIKE $1 AND tenant_id = $2", [bulanIni + '%', tId])
         ]);
 
         const config = configData || { 
@@ -157,16 +159,11 @@ app.use(async (req, res, next) => {
         };
         next();
     } catch (err) {
-        console.error("Middleware Error:", err);
-        res.locals.config = { nama_aplikasi: "Tatriz (Error Connection)" };
+        console.error("Middleware Error Detail:", err);
+        res.locals.config = { nama_aplikasi: "Tatriz (Koneksi Database Bermasalah)" };
         next();
     }
 });
-
-function noCache(req, res, next) {
-    res.set('Cache-Control', 'no-store');
-    next();
-}
 
 // --- 5. ROUTES ---
 
