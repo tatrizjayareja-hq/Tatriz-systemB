@@ -206,76 +206,53 @@ app.post('/login', (req, res) => {
     });
 });
 
+// HAPUS SEMUA app.post('/register-tenant') yang lama, ganti dengan ini:
 app.post('/register-tenant', async (req, res) => {
     const { nama_toko, username, password } = req.body;
 
     try {
-        // 1. Hash password (Wajib agar bisa login nanti)
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        // 1. Hash password (WAJIB agar bisa login)
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 2. Ambil Tenant ID terakhir
+        // 2. Cari Tenant ID tertinggi (Gunakan maxid huruf kecil untuk Postgres)
         db.get("SELECT MAX(tenant_id) as maxid FROM settings", [], (err, row) => {
+            if (err) console.error("Error Get MaxID:", err);
+            
             let currentMax = (row && row.maxid) ? Number(row.maxid) : 0;
             let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
 
-            // 3. Simpan ke tabel Settings
-            db.run(
-                "INSERT INTO settings (tenant_id, nama_perusahaan, nama_aplikasi, logo_path, level) VALUES (?, ?, ?, ?, ?)",
-                [newTenantId, nama_toko, 'TATRIZ SYSTEM', 'default.png', 1],
-                (err) => {
-                    if (err) console.error("Error Settings:", err);
+            // 3. Gunakan db.serialize agar urutan eksekusi benar
+            db.serialize(() => {
+                // Simpan ke Settings
+                db.run(
+                    "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
+                    [newTenantId, nama_toko]
+                );
 
-                    // 4. Simpan ke tabel Users (PASTIKAN hashedPassword MASUK DI SINI)
-                    db.run(
-                        "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)",
-                        [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko],
-                        (err) => {
-                            if (err) {
-                                console.error("Error User:", err);
-                                return res.send("<script>alert('Gagal simpan user!'); window.history.back();</script>");
-                            }
-                            res.send("<script>alert('Registrasi Berhasil!'); window.location='/';</script>");
+                // Simpan ke Users dengan Password yang sudah di-hash
+                db.run(
+                    "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)", 
+                    [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko], 
+                    (err) => {
+                        if (err) {
+                            console.error("Error Simpan User:", err.message);
+                            return res.send("<script>alert('Username sudah dipakai atau Error Database!'); window.history.back();</script>");
                         }
-                    );
-                }
-            );
+                        console.log(`✅ Tenant Baru Terdaftar: ${username} (ID: ${newTenantId})`);
+                        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
+                    }
+                );
+            });
         });
     } catch (error) {
         console.error("System Error:", error);
-        res.status(500).send("Terjadi kesalahan sistem.");
+        res.status(500).send("Terjadi kesalahan sistem saat pendaftaran.");
     }
 });
 
 // Tampilkan halaman form
 app.get('/register', (req, res) => {
     res.render('register');
-});
-
-// Proses Pendaftaran
-app.post('/register-tenant', (req, res) => {
-    const { nama_toko, username, password } = req.body;
-
-    // 1. Cari ID tertinggi agar tidak bentrok dengan ID 1
-    db.get("SELECT MAX(tenant_id) as maxId FROM settings", (err, row) => {
-        let currentMax = row ? row.maxId : 0;
-        // Jika maxId masih di bawah 100 (seperti ID 1 Anda), kita loncat ke 100
-        let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
-
-        db.serialize(() => {
-            // 2. Buat profil setting awal (Level 1 = Standar)
-            db.run("INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
-                [newTenantId, nama_toko]);
-
-            // 3. Buat akun Admin untuk owner cabang tersebut
-            db.run("INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, 'admin', 'Owner ' + ?)", 
-                [newTenantId, username, password, nama_toko], (err) => {
-                    if (err) return res.send("<script>alert('Username sudah dipakai!'); window.history.back();</script>");
-                    
-                    res.send("<script>alert('Pendaftaran Berhasil! Silakan Login dengan akun Owner.'); window.location='/';</script>");
-                });
-        });
-    });
 });
 
 // --- KONFIGURASI MULTER (SERVERLESS READY - MEMORY ONLY) ---
