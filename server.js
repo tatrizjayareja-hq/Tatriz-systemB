@@ -167,27 +167,27 @@ function noCache(req, res, next) {
 
 // --- 5. ROUTES ---
 
-app.get('/', (req, res) => {
-    // Langsung cek jumlah settings tanpa "SELECT 1" yang menggantung
-    db.get("SELECT COUNT(*) as jml FROM settings", [], (err, row) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).send("Database Error: " + err.message);
-        }
-        
-        const isNewSystem = (row && (Number(row.jml) === 0));
+app.get('/', async (req, res) => {
+    try {
+        // Ambil jumlah settings untuk cek apakah sistem baru
+        const rowJml = await db.get("SELECT COUNT(*) as jml FROM settings");
+        const isNewSystem = (rowJml && (Number(rowJml.jml) === 0));
 
-        db.get("SELECT * FROM settings WHERE tenant_id = 1", [], (err, config) => {
-            res.render('login', { 
-                config: config || { 
-                    logo_path: 'default.png', 
-                    nama_aplikasi: 'TATRIZ SYSTEM', 
-                    nama_perusahaan: 'Multi-Tenant System' 
-                }, 
-                isNew: isNewSystem 
-            });
+        // Ambil config default (Tenant 1)
+        const config = await db.get("SELECT * FROM settings WHERE tenant_id = 1");
+
+        res.render('login', { 
+            config: config || { 
+                logo_path: 'default.png', 
+                nama_aplikasi: 'TATRIZ SYSTEM', 
+                nama_perusahaan: 'Multi-Tenant System' 
+            }, 
+            isNew: isNewSystem 
         });
-    });
+    } catch (err) {
+        console.error("Error di Halaman Depan:", err);
+        res.status(500).send("Gagal memuat halaman login: " + err.message);
+    }
 });
 
 // --- LOGIN ---
