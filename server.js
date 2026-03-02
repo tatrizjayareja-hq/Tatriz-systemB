@@ -357,13 +357,18 @@ app.post('/save-settings', isAdmin, upload.single('logo'), async (req, res) => {
 // --- DASHBOARD ---
 app.get('/dashboard', isAdmin, async (req, res) => {
     try {
-        const tId = req.session.tenantId;
+        // Pastikan tId terbaca sebagai angka murni
+        const tId = parseInt(req.session.tenantId); 
 
-        // Ambil semua statistik secara paralel agar cepat
+        if (!tId) return res.redirect('/');
+
+        // Jalankan semua query dengan parameter yang sudah dipastikan tipenya
         const [stats, rowP, rowM] = await Promise.all([
-            db.get("SELECT COUNT(CASE WHEN status = 'Design' THEN 1 END) as jml_design, COUNT(CASE WHEN status = 'Produksi' THEN 1 END) as jml_produksi, COUNT(CASE WHEN status = 'Clear' THEN 1 END) as jml_invoice, COUNT(CASE WHEN status = 'DP/Cicil' THEN 1 END) as jml_cicil FROM po_utama WHERE tenant_id = ?", [tId]),
-            db.get("SELECT ((SELECT SUM(total_harga_customer) FROM po_utama WHERE tenant_id = ?) - (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)) as total_piutang", [tId, tId]),
-            db.get("SELECT COUNT(*) as total FROM (SELECT h.detail_id FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id WHERE h.tenant_id = ? GROUP BY h.detail_id HAVING SUM(h.jumlah_setor) > d.jumlah) as sub", [tId])
+            db.get("SELECT COUNT(CASE WHEN status = 'Design' THEN 1 END) as jml_design, COUNT(CASE WHEN status = 'Produksi' THEN 1 END) as jml_produksi, COUNT(CASE WHEN status = 'Clear' THEN 1 END) as jml_invoice, COUNT(CASE WHEN status = 'DP/Cicil' THEN 1 END) as jml_cicil FROM po_utama WHERE tenant_id = $1", [tId]),
+            
+            db.get("SELECT ((SELECT COALESCE(SUM(total_harga_customer), 0) FROM po_utama WHERE tenant_id = $1) - (SELECT COALESCE(SUM(jumlah), 0) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = $1)) as total_piutang", [tId]),
+            
+            db.get("SELECT COUNT(*) as total FROM (SELECT h.detail_id FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id WHERE h.tenant_id = $1 GROUP BY h.detail_id HAVING SUM(h.jumlah_setor) > d.jumlah) as sub", [tId])
         ]);
 
         res.render('dashboard', {
@@ -374,7 +379,7 @@ app.get('/dashboard', isAdmin, async (req, res) => {
         });
     } catch (err) {
         console.error("Dashboard Error:", err);
-        res.status(500).send("Gagal memuat dashboard.");
+        res.status(500).send("Gagal memuat dashboard. Silakan cek log server.");
     }
 });
 
