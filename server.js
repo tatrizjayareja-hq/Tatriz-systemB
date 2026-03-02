@@ -8,38 +8,35 @@ const pool = new Pool({
 });
 // WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
-    get: async (sql, params = []) => {
-        const query = sql.replace(/\?/g, (match, index) => `$${params.indexOf(params[index]) + 1}`); 
-        // Versi lebih aman:
-        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+    query: async (sql, params = []) => {
+        // 1. Ganti ? jadi $1, $2...
+        let count = 0;
+        const formattedSql = sql.replace(/\?/g, () => {
+            count++;
+            return `$${count}`;
+        });
+
+        // 2. Kirim ke Pool
         const res = await pool.query(formattedSql, params);
+        return res;
+    },
+    get: async (sql, params = []) => {
+        const res = await db.query(sql, params);
         return res.rows[0];
     },
     all: async (sql, params = []) => {
-        try {
-            // Ubah ? menjadi $1, $2, dst sesuai urutan array params
-            const formattedSql = sql.replace(/\?/g, (_, i) => `$${i + 1}`);
-            
-            // Pastikan params adalah array dan semua angka sudah menjadi Number murni
-            const sanitizedParams = params.map(p => (typeof p === 'number' || !isNaN(p) && p !== "") ? Number(p) : p);
-            
-            const res = await pool.query(formattedSql, sanitizedParams);
-            return res.rows || []; // Kembalikan array kosong jika tidak ada data (biar EJS tidak crash)
-        } catch (err) {
-            console.error("Database All Error:", err.message);
-            throw err;
-        }
+        const res = await db.query(sql, params);
+        return res.rows || [];
     },
     run: async (sql, params = []) => {
-        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
-        return await pool.query(formattedSql, params);
+        return await db.query(sql, params);
     }
 };
-const { createClient } = require('@supabase/supabase-js');
 
+
+const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 const path = require('path');
 const bodyParser = require('body-parser');
@@ -621,22 +618,26 @@ app.post('/save-kas', (req, res) => {
     }
 });
 
-app.get('/setup-auth', isAdmin, (req, res) => {
-    const tId = req.session.tenantId;
+app.get('/setup', noCache, async (req, res) => {
+    // Pastikan session ada isinya
+    const rawId = req.session.tenantId;
+    if (!rawId) return res.redirect('/');
 
-    // Ambil data Karyawan & Mesin secara paralel milik tenant ini
-    const sqlUsers = "SELECT * FROM users WHERE tenant_id = ? ORDER BY role DESC";
-    const sqlMachines = "SELECT * FROM mesin WHERE tenant_id = ? ORDER BY id ASC";
+    const tId = parseInt(rawId);
 
-    db.all(sqlUsers, [tId], (err, users) => {
-        db.all(sqlMachines, [tId], (err, machines) => {
-            // Kita panggil res.locals.config yang sudah disiapkan oleh middleware sebelumnya
-            res.render('setup-auth', { 
-                users: users || [], 
-                machines: machines || [] 
-            });
+    try {
+        // Kita panggil manual dengan CAST di SQL-nya untuk keamanan ganda
+        const users = await db.all("SELECT * FROM users WHERE tenant_id = $1::INTEGER", [tId]);
+        const machines = await db.all("SELECT * FROM mesin WHERE tenant_id = $1::INTEGER", [tId]);
+
+        res.render('setup', { 
+            users: users, 
+            machines: machines 
         });
-    });
+    } catch (err) {
+        console.error("Setup Error:", err.message);
+        res.status(500).send("Gagal: " + err.message);
+    }
 });
 
 // A. Simpan/Update User
