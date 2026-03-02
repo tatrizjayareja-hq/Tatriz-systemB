@@ -16,9 +16,19 @@ const db = {
         return res.rows[0];
     },
     all: async (sql, params = []) => {
-        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
-        const res = await pool.query(formattedSql, params);
-        return res.rows;
+        try {
+            // Ubah ? menjadi $1, $2, dst sesuai urutan array params
+            const formattedSql = sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+            
+            // Pastikan params adalah array dan semua angka sudah menjadi Number murni
+            const sanitizedParams = params.map(p => (typeof p === 'number' || !isNaN(p) && p !== "") ? Number(p) : p);
+            
+            const res = await pool.query(formattedSql, sanitizedParams);
+            return res.rows || []; // Kembalikan array kosong jika tidak ada data (biar EJS tidak crash)
+        } catch (err) {
+            console.error("Database All Error:", err.message);
+            throw err;
+        }
     },
     run: async (sql, params = []) => {
         const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
@@ -104,13 +114,15 @@ initDB();
 // --- 3. MIDDLEWARE PROTEKSI ---
 
 function isAdmin(req, res, next) {
-    if (req.session.userId && req.session.role === 'admin') next();
-    else res.status(403).send("Akses Ditolak: Khusus Admin!");
-}
+    // Tambahkan log ini untuk intip isi session di terminal Vercel
+    console.log("Cek Role User:", req.session.role); 
 
-function isFullFeature(req, res, next) {
-    if (req.session.userId) next();
-    else res.status(403).send("Sesi tidak valid.");
+    // Paksa jadi huruf kecil semua (lowercase) agar tidak salah banding
+    if (req.session.role && req.session.role.toLowerCase() === 'admin') {
+        next();
+    } else {
+        res.send("<script>alert('Akses Dibatasi! Khusus Admin.'); window.location='/';</script>");
+    }
 }
 
 // --- 4. GLOBAL DATA MIDDLEWARE (Pindah ke bawah setelah login agar tidak mengganggu login) ---
@@ -219,7 +231,7 @@ app.post('/login', async (req, res) => {
 
         // Set Session
         req.session.userId = user.id;
-        req.session.tenantId = user.tenant_id;
+        req.session.tenantId = Number(user.tenant_id);
         req.session.role = user.role;
         req.session.nama = user.nama_lengkap;
 
@@ -426,7 +438,7 @@ app.post('/setup-auth', async (req, res) => {
 
 // 2. GET SETUP (Halaman Pengaturan User & Mesin)
 app.get('/setup', noCache, async (req, res) => {
-    if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
+    //if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
     
     // Pastikan ini benar-benar angka
     const tId = Number(req.session.tenantId) || 0;
