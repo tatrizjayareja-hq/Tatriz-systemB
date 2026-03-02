@@ -45,14 +45,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const pgSession = require('connect-pg-simple')(session);
 
 app.use(session({
-    store: new pgSession({
-        pool : pool,                // Menggunakan pool yang sudah Anda buat
-        tableName : 'session'       // Nama tabel untuk menyimpan session
-    }),
     secret: "tatriz_secret_key",
-    resave: false,
+    resave: true, // Ubah ke true jika session sering hilang
     saveUninitialized: false,
-    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 hari
+    proxy: true, // Tambahkan ini agar Vercel mengenali session lewat HTTPS
+    cookie: { 
+        secure: true, // Set true jika pakai domain vercel.app (HTTPS)
+        sameSite: 'none',
+        maxAge: 1000 * 60 * 60 * 24 
+    }
 }));
 
 // 2. DATABASE INITIALIZATION (Async & Postgres Friendly)
