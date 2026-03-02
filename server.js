@@ -8,21 +8,14 @@ const pool = new Pool({
 });
 // WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
-    query: (text, params) => pool.query(text.replace(/\?/g, ($, i) => `$${i + 1}`), params),
-    
-    // Fungsi untuk SELECT 1 data
     get: async (sql, params = []) => {
         const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
         return res.rows[0];
     },
-    
-    // Fungsi untuk SELECT banyak data
     all: async (sql, params = []) => {
         const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
         return res.rows;
     },
-    
-    // Fungsi untuk INSERT/UPDATE/DELETE
     run: async (sql, params = []) => {
         return await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
     }
@@ -60,34 +53,41 @@ app.use(session({
     }
 }));
 
-// 2. DATABASE INITIALIZATION (Async Version)
+// 2. DATABASE INITIALIZATION (Async & Postgres Friendly)
 const initDB = async () => {
     try {
         const pk = "SERIAL PRIMARY KEY"; 
         
+        // Buat Tabel Settings
         await db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
 
+        // Buat Tabel Users
         await db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`);
 
-        // Cek Admin Utama
-        const row = await db.get("SELECT count(*) as count FROM users");
-        if (row && Number(row.count) === 0) {
-            // Gunakan password admin123 yang sudah di-hash agar bisa login
+        // Cek Admin Utama (Tenant 1)
+        const checkUser = await db.get("SELECT count(*) as count FROM users");
+        if (checkUser && Number(checkUser.count) === 0) {
+            // Kita hash passwordnya agar bisa login (bcrypt)
             const hashedAdmin = await bcrypt.hash('admin123', 10);
             await db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', ?, 'Administrator Tatriz', 'admin')`, [hashedAdmin]);
+            console.log("✅ User Admin Default Berhasil Dibuat.");
         }
 
+        // Tabel Pendukung Lainnya
         await db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`);
         await db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`);
         await db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`);
         await db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`);
         await db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`);
         
-        console.log("✅ Database Supabase Terhubung & Tabel Siap!");
+        console.log("🚀 Semua Tabel Supabase Siap!");
     } catch (err) {
-        console.error("❌ Gagal Inisialisasi Database:", err);
+        console.error("❌ Gagal Inisialisasi Database Supabase:", err);
     }
 };
+
+// Panggil fungsi inisialisasi
+initDB();
 
 // Jalankan inisialisasi
 initDB();
