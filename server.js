@@ -195,18 +195,28 @@ app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     try {
         const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
-        if (!user) return res.send("Username tidak ditemukan.");
+        
+        if (!user) {
+            return res.send("Username tidak ditemukan.");
+        }
 
         const match = await bcrypt.compare(password, user.password);
-        if (!match) return res.send("Password salah.");
+        if (!match) {
+            return res.send("Password salah.");
+        }
 
+        // Simpan ke session
         req.session.userId = user.id;
         req.session.tenantId = user.tenant_id;
         req.session.role = user.role;
 
-        req.session.save(() => res.redirect('/dashboard'));
+        // Penting di Vercel: Simpan session secara manual sebelum redirect
+        req.session.save(() => {
+            res.redirect('/dashboard');
+        });
     } catch (err) {
-        res.status(500).send("Login Error");
+        console.error("Login Error:", err);
+        res.status(500).send("Terjadi kesalahan pada server.");
     }
 });
 
@@ -215,34 +225,28 @@ app.post('/register-tenant', async (req, res) => {
     const { nama_toko, username, password } = req.body;
 
     try {
-        // 1. Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 2. Ambil Tenant ID tertinggi (Gunakan await)
-        const row = await db.get("SELECT MAX(tenant_id) as maxid FROM settings", []);
-        
+        // Ambil ID Tenant tertinggi secara async
+        const row = await db.get("SELECT MAX(tenant_id) as maxid FROM settings");
         let currentMax = (row && row.maxid) ? Number(row.maxid) : 0;
         let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
 
-        // 3. Simpan data secara berurutan (tanpa db.serialize)
-        // Simpan ke Settings
+        // Insert data ke dua tabel secara berurutan
         await db.run(
             "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
             [newTenantId, nama_toko]
         );
 
-        // Simpan ke Users
         await db.run(
             "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)", 
             [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko]
         );
 
-        console.log(`✅ Tenant Baru Terdaftar: ${username} (ID: ${newTenantId})`);
         res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
-
     } catch (error) {
-        console.error("System Error saat pendaftaran:", error);
-        res.status(500).send(`Terjadi kesalahan sistem: ${error.message}`);
+        console.error("Register Error:", error);
+        res.status(500).send("Gagal mendaftar tenant baru.");
     }
 });
 
@@ -347,6 +351,8 @@ app.post('/save-settings', isAdmin, upload.single('logo'), async (req, res) => {
 app.get('/dashboard', isAdmin, async (req, res) => {
     try {
         const tId = req.session.tenantId;
+
+        // Ambil semua statistik secara paralel agar cepat
         const [stats, rowP, rowM] = await Promise.all([
             db.get("SELECT COUNT(CASE WHEN status = 'Design' THEN 1 END) as jml_design, COUNT(CASE WHEN status = 'Produksi' THEN 1 END) as jml_produksi, COUNT(CASE WHEN status = 'Clear' THEN 1 END) as jml_invoice, COUNT(CASE WHEN status = 'DP/Cicil' THEN 1 END) as jml_cicil FROM po_utama WHERE tenant_id = ?", [tId]),
             db.get("SELECT ((SELECT SUM(total_harga_customer) FROM po_utama WHERE tenant_id = ?) - (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)) as total_piutang", [tId, tId]),
@@ -360,7 +366,8 @@ app.get('/dashboard', isAdmin, async (req, res) => {
             user: req.session
         });
     } catch (err) {
-        res.status(500).send("Dashboard Error");
+        console.error("Dashboard Error:", err);
+        res.status(500).send("Gagal memuat dashboard.");
     }
 });
 
