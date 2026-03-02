@@ -63,7 +63,7 @@
                         <td class="text-center">
                             <div class="btn-group">
                                 <button class="btn btn-sm btn-warning" 
-                                    onclick="editProduksi('<%= row.ID_PROD %>', '<%= row.TANGGAL %>', '<%= row.SHIFT %>', '<%= row.JML %>')">
+                                    onclick="editProduksi('<%= row.ID_PROD %>', '<%= row.TANGGAL %>', '<%= row.OP %>', '<%= row.SHIFT %>', '<%= row.NAMA_PO %>', '<%= row.NAMA_BORDIR %>', '<%= row.JENIS_BORDIR %>', '<%= row.JML %>', '<%= row.HARGA_PABRIK %>')">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button class="btn btn-sm btn-danger" 
@@ -89,31 +89,54 @@
             </div>
             <form action="/update-produksi" method="POST">
                 <div class="modal-body">
-                    <input type="hidden" name="id_prod" id="edit_id">
-                    <div class="mb-3">
-                        <label>Tanggal</label>
-                        <input type="date" name="tanggal" id="edit_tanggal" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>Shift</label>
-                        <select name="shift" id="edit_shift" class="form-select">
-                            <option value="Pagi">Pagi</option>
-                            <option value="Sore">Sore</option>
-                            <option value="Malam">Malam</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Jumlah Setor</label>
-                        <input type="number" name="jumlah" id="edit_jumlah" class="form-control" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-                </div>
-            </form>
+    <input type="hidden" name="id_prod" id="edit_id">
+    
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Tanggal</label>
+            <input type="date" name="tanggal" id="edit_tanggal" class="form-control" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Operator (OP)</label>
+            <input type="text" name="op" id="edit_op" class="form-control" required>
         </div>
     </div>
+
+    <div class="mb-3">
+        <label class="form-label">Nama PO</label>
+        <input type="text" name="nama_po" id="edit_po" class="form-control" required>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Nama Bordir</label>
+            <input type="text" name="nama_bordir" id="edit_bordir" class="form-control">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Jenis</label>
+            <input type="text" name="jenis_bordir" id="edit_jenis" class="form-control">
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label class="form-label">Shift</label>
+            <select name="shift" id="edit_shift" class="form-select">
+                <option value="Pagi">Pagi</option>
+                <option value="Sore">Sore</option>
+                <option value="Malam">Malam</option>
+            </select>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label class="form-label">Jumlah (Jml)</label>
+            <input type="number" name="jumlah" id="edit_jumlah" class="form-control" required>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label class="form-label">Harga</label>
+            <input type="number" name="harga" id="edit_harga" class="form-control" required>
+        </div>
+    </div>
+</div>
 </div>
 
 <script>
@@ -123,13 +146,17 @@
         }
     }
 
-    function editProduksi(id, tgl, shift, jml) {
+    function editProduksi(id, tgl, op, shift, po, bordir, jenis, jml, harga) {
         document.getElementById('edit_id').value = id;
         document.getElementById('edit_tanggal').value = tgl;
+        document.getElementById('edit_op').value = op;
         document.getElementById('edit_shift').value = shift;
+        document.getElementById('edit_po').value = po;
+        document.getElementById('edit_bordir').value = bordir;
+        document.getElementById('edit_jenis').value = jenis;
         document.getElementById('edit_jumlah').value = jml;
+        document.getElementById('edit_harga').value = harga;
         
-        // Memanggil modal bootstrap
         var myModal = new bootstrap.Modal(document.getElementById('modalEdit'));
         myModal.show();
     }

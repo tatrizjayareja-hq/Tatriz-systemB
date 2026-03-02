@@ -62,16 +62,18 @@
         </div>
 
         <div class="input-group">
-            <label>Pilih Nama Desain</label>
-            <select name="detail_id" id="select_bordir" onchange="tampilkanInfo(this)" required disabled>
-                <option value="">-- Pilih Desain --</option>
+            <label>Pilih Jenis Bordir</label>
+            <select name="detail_id" id="select_jenis" onchange="pilihOtomatisDesain(this)" required disabled>
+                <option value="">-- Pilih Jenis --</option>
             </select>
         </div>
 
+        <input type="hidden" name="harga_op" id="input_harga_op">
+
         <div id="info_bordir" class="info-bordir" style="background: #e8f4fd; padding: 15px; border-radius: 10px; display: none; margin-bottom: 15px; border-left: 5px solid #0984e3;">
             <div style="margin-bottom: 5px;">
-                <small style="color: #666;">Jenis Bordir:</small><br>
-                <strong id="display_jenis" style="font-size: 16px;"></strong>
+                <small style="color: #666;">Nama Desain:</small><br>
+                <strong id="display_nama_desain" style="font-size: 16px; color: #333;"></strong>
             </div>
             <div style="margin-bottom: 10px;">
                 <small style="color: #666;">Upah per Pcs:</small><br>
@@ -80,8 +82,6 @@
             
             <label>Jumlah Hasil (Pcs)</label>
             <input type="number" name="jumlah_setor" id="input_setor" placeholder="0" min="1" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
-            
-            <input type="hidden" name="harga_op" id="input_harga_op">
         </div>
 
         <div class="input-group">
@@ -114,75 +114,61 @@
 
 
 <script>
-    // Set tanggal otomatis
-    document.getElementById('tgl_kerja').valueAsDate = new Date();
+    let dataSimpanan = []; 
 
-    // FUNGSI 1: Memuat Nama Desain ke dalam Dropdown
-    async function muatDaftarDesain(poId) {
-        const selectBordir = document.getElementById('select_bordir');
-        const infoDiv = document.getElementById('info_bordir');
+// FUNGSI 1: Ambil data PO & isi dropdown JENIS
+async function muatDaftarDesain(poId) {
+    const selectJenis = document.getElementById('select_jenis');
+    const infoDiv = document.getElementById('info_bordir');
+    
+    infoDiv.style.display = 'none';
+    if(!poId) { selectJenis.disabled = true; return; }
+
+    try {
+        const res = await fetch(`/api/po-details/${poId}`);
+        dataSimpanan = await res.json(); 
         
-        // Sembunyikan info harga/jenis dulu tiap ganti PO
+        let html = '<option value="">-- Pilih Jenis Bordir --</option>';
+        dataSimpanan.forEach(d => {
+            // Kita simpan ID Detail di value Jenis agar langsung terhubung ke Nama Desain
+            html += `<option value="${d.id}" 
+                             data-nama="${d.nama_desain}" 
+                             data-harga="${d.harga_operator}" 
+                             data-sisa="${d.sisa}">${d.jenis_bordir} (Sisa: ${d.sisa})</option>`;
+        });
+        
+        selectJenis.innerHTML = html;
+        selectJenis.disabled = false;
+    } catch (err) {
+        console.error("Gagal ambil data:", err);
+    }
+}
+
+// FUNGSI 2: Klik Jenis langsung Muncul Nama & Harga (TIDAK PERLU PILIH LAGI)
+function pilihOtomatisDesain(el) {
+    const infoDiv = document.getElementById('info_bordir');
+    const selected = el.options[el.selectedIndex];
+    
+    if(el.value) {
+        // Ambil data dari atribut data- yang kita buat di atas
+        const namaDesain = selected.getAttribute('data-nama');
+        const harga = selected.getAttribute('data-harga');
+        const sisa = selected.getAttribute('data-sisa');
+
+        // Tampilkan ke UI otomatis
+        document.getElementById('display_nama_desain').innerText = namaDesain;
+        document.getElementById('display_harga').innerText = "Rp " + parseInt(harga).toLocaleString('id-ID');
+        document.getElementById('input_harga_op').value = harga;
+        
+        const inputSetor = document.getElementById('input_setor');
+        inputSetor.placeholder = "Maksimal " + sisa;
+        inputSetor.max = sisa; // Batasi input agar tidak over-limit
+        
+        infoDiv.style.display = 'block';
+    } else {
         infoDiv.style.display = 'none';
-
-        if(!poId) { 
-            selectBordir.disabled = true; 
-            selectBordir.innerHTML = '<option value="">-- Pilih Desain --</option>';
-            return; 
-        }
-
-        try {
-            const res = await fetch(`/api/po-details/${poId}`);
-            const dataDetails = await res.json();
-            
-            if (dataDetails.length === 0) {
-                selectBordir.innerHTML = '<option value="">-- Semua Desain Selesai --</option>';
-                selectBordir.disabled = true;
-                return;
-            }
-
-            let html = '<option value="">-- Pilih Nama Desain --</option>';
-            dataDetails.forEach(d => {
-                // Titipkan data Harga, Jenis, dan Sisa di atribut 'data-'
-                html += `<option value="${d.id}" 
-                                 data-harga="${d.harga_operator}" 
-                                 data-jenis="${d.jenis_bordir}" 
-                                 data-sisa="${d.sisa}">${d.nama_desain} (Sisa: ${d.sisa} pcs)</option>`;
-            });
-            
-            selectBordir.innerHTML = html;
-            selectBordir.disabled = false;
-        } catch (err) {
-            console.error("Gagal ambil data desain:", err);
-        }
     }
-
-    // FUNGSI 2: Mengisi Jenis Bordir & Harga secara Otomatis (HANYA SATU FUNGSI INI)
-    function tampilkanInfo(el) {
-        const infoDiv = document.getElementById('info_bordir');
-        const selected = el.options[el.selectedIndex];
-        
-        if(el.value) {
-            // Ambil data yang dititipkan tadi
-            const harga = selected.getAttribute('data-harga');
-            const jenis = selected.getAttribute('data-jenis');
-            const sisa = selected.getAttribute('data-sisa');
-
-            // Tampilkan secara otomatis ke label/input
-            document.getElementById('display_jenis').innerText = jenis;
-            document.getElementById('display_harga').innerText = "Rp " + parseInt(harga).toLocaleString('id-ID');
-            document.getElementById('input_harga_op').value = harga;
-            
-            // Atur batas maksimal input agar tidak melebihi sisa PO
-            const inputSetor = document.getElementById('input_setor');
-            // tidak ada Max
-            inputSetor.placeholder = "Maksimal " + sisa;
-            
-            infoDiv.style.display = 'block';
-        } else {
-            infoDiv.style.display = 'none';
-        }
-    }
+}
 </script>
 </body>
 </html>

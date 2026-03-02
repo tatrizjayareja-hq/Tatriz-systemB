@@ -1054,7 +1054,7 @@ app.get('/operator', (req, res) => {
 
 app.get('/api/po-details/:id', (req, res) => {
     const poId = req.params.id;
-    // Kita hitung 'sisa' agar operator tahu berapa pcs lagi yang harus dikerjakan
+    // Query ini penting agar data 'Nama Desain' dan 'Jenis' terkirim semua ke EJS
     const sql = `
         SELECT d.*, 
                (d.jumlah - COALESCE((SELECT SUM(jumlah_setor) FROM hasil_kerja WHERE detail_id = d.id), 0)) as sisa
@@ -1062,27 +1062,45 @@ app.get('/api/po-details/:id', (req, res) => {
         WHERE d.po_id = ?
     `;
     db.all(sql, [poId], (err, rows) => {
-        res.json(rows || []);
+        if (err) return res.json([]);
+        // Filter agar desain yang sudah lunas (sisa <= 0) tidak muncul di HP operator
+        const sisaAda = rows.filter(r => r.sisa > 0);
+        res.json(sisaAda);
     });
 });
 
 app.post('/simpan-kerja', (req, res) => {
+    // Pastikan nama variabel di sini (detail_id) sama dengan 'name' di tag <select> EJS
     const { tanggal, shift, po_id, detail_id, jumlah_setor, mesin_id } = req.body;
     const userId = req.session.userId;
     const tId = req.session.tenantId;
 
-    if (Number(jumlah_setor) > 0) {
-        db.run(`INSERT INTO hasil_kerja (tenant_id, operator_id, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
-                [tId, userId, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor], (err) => {
-            if (err) return res.status(500).send("Gagal simpan hasil kerja.");
-            
-            // Opsional: Cek jika PO sudah selesai semua, ubah status ke QC otomatis
-            res.redirect('/hasil-saya');
-        });
-    } else {
-        res.send("<script>alert('Jumlah harus lebih dari 0!'); window.history.back();</script>");
+    if (!jumlah_setor || Number(jumlah_setor) <= 0) {
+        return res.send("<script>alert('Jumlah tidak valid!'); window.history.back();</script>");
     }
+
+    db.serialize(() => {
+        const sqlInsert = `INSERT INTO hasil_kerja (tenant_id, operator_id, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor) 
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+        
+        db.run(sqlInsert, [tId, userId, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor], function(err) {
+            if (err) return res.status(500).send("Gagal simpan data.");
+
+            // LOGIKA AUTO-UPDATE STATUS KE QC
+            // Ini penting supaya kalau PO sudah selesai dikerjakan semua, statusnya pindah otomatis
+            const sqlCheck = `
+                SELECT 
+                    (SELECT SUM(jumlah) FROM po_detail WHERE po_id = ?) as target,
+                    (SELECT SUM(jumlah_setor) FROM hasil_kerja WHERE po_id = ?) as realisasi
+            `;
+            db.get(sqlCheck, [po_id, po_id], (err, row) => {
+                if (row && row.realisasi >= row.target) {
+                    db.run("UPDATE po_utama SET status = 'QC' WHERE id = ?", [po_id]);
+                }
+                res.redirect('/hasil-saya');
+            });
+        });
+    });
 });
 
 // --- RUTE REKAP HASIL KERJA OPERATOR ---
