@@ -9,16 +9,20 @@ const pool = new Pool({
 // WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
     get: async (sql, params = []) => {
-        // Tambahkan logging kecil untuk debug jika perlu: console.log("Query Get:", sql, params);
-        const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+        const query = sql.replace(/\?/g, (match, index) => `$${params.indexOf(params[index]) + 1}`); 
+        // Versi lebih aman:
+        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+        const res = await pool.query(formattedSql, params);
         return res.rows[0];
     },
     all: async (sql, params = []) => {
-        const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+        const res = await pool.query(formattedSql, params);
         return res.rows;
     },
     run: async (sql, params = []) => {
-        return await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+        const formattedSql = sql.includes('$') ? sql : sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+        return await pool.query(formattedSql, params);
     }
 };
 const { createClient } = require('@supabase/supabase-js');
@@ -424,19 +428,20 @@ app.post('/setup-auth', async (req, res) => {
 app.get('/setup', noCache, async (req, res) => {
     if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
     
-    // PAKSA JADI ANGKA DI SINI
-    const tId = Number(req.session.tenantId);
+    // Pastikan ini benar-benar angka
+    const tId = Number(req.session.tenantId) || 0;
 
     try {
+        // Kita paksa Postgres membaca $1 sebagai INTEGER dengan ::INTEGER
         const [users, machines] = await Promise.all([
-            db.all("SELECT * FROM users WHERE tenant_id = $1 ORDER BY id ASC", [tId]),
-            db.all("SELECT * FROM mesin WHERE tenant_id = $1 ORDER BY id ASC", [tId])
+            db.all("SELECT * FROM users WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId]),
+            db.all("SELECT * FROM mesin WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId])
         ]);
 
         res.render('setup', { users, machines });
     } catch (err) {
         console.error("Setup Page Error Detail:", err);
-        res.status(500).send("Gagal memuat data setup.");
+        res.status(500).send("Gagal memuat data setup: " + err.message);
     }
 });
 
