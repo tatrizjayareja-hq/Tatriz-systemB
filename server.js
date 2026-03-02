@@ -394,31 +394,50 @@ app.get('/dashboard', isAdmin, async (req, res) => {
 });
 
 // --- RUTE SETUP ---
-app.post('/setup-auth', (req, res) => {
+// 1. POST SETUP AUTH (Proses Cek Password Setup)
+app.post('/setup-auth', async (req, res) => {
     const { password } = req.body;
-    const tId = req.session.tenantId; // Ambil ID Tenant dari sesi login
+    const tId = Number(req.session.tenantId); // Paksa jadi angka untuk Postgres
 
-    db.get("SELECT password_admin FROM settings WHERE tenant_id = ?", [tId], (err, row) => {
-        // Jika belum ada password diset, gunakan default 'admin123' atau paksa setel dulu
+    try {
+        const row = await db.get("SELECT password_admin FROM settings WHERE tenant_id = $1", [tId]);
+        
+        // Jika di database masih NULL/kosong, gunakan default 'admin123'
         const correctPassword = row?.password_admin || 'admin123'; 
 
-        if (password === correctPassword) {
-            req.session.isAdminSetup = true; // Beri izin akses ke halaman setup
-            res.redirect('/setup');
+        if (String(password) === String(correctPassword)) {
+            req.session.isAdminSetup = true; 
+            req.session.save(() => {
+                res.redirect('/setup');
+            });
         } else {
             res.send("<script>alert('Password Admin Salah!'); window.location='/setup-auth';</script>");
         }
-    });
+    } catch (err) {
+        console.error("Setup Auth Error:", err);
+        res.status(500).send("Gagal autentikasi setup.");
+    }
 });
 
-app.get('/setup', noCache, (req, res) => {
+// 2. GET SETUP (Halaman Pengaturan User & Mesin)
+app.get('/setup', noCache, async (req, res) => {
+    // Cek izin akses setup
     if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
-    const tId = req.session.tenantId || 1;
-    db.all("SELECT * FROM users WHERE tenant_id = ?", [tId], (err, users) => {
-        db.all("SELECT * FROM mesin WHERE tenant_id = ?", [tId], (err, machines) => {
-            res.render('setup', { users, machines });
-        });
-    });
+    
+    const tId = Number(req.session.tenantId);
+
+    try {
+        // Ambil data secara paralel agar cepat (Ciri khas aplikasi modern)
+        const [users, machines] = await Promise.all([
+            db.all("SELECT * FROM users WHERE tenant_id = $1 ORDER BY id ASC", [tId]),
+            db.all("SELECT * FROM mesin WHERE tenant_id = $1 ORDER BY id ASC", [tId])
+        ]);
+
+        res.render('setup', { users, machines });
+    } catch (err) {
+        console.error("Setup Page Error:", err);
+        res.status(500).send("Gagal memuat data setup: " + err.message);
+    }
 });
 
 app.get('/logout', (req, res) => {
