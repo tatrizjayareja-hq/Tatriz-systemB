@@ -42,15 +42,17 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 
+const pgSession = require('connect-pg-simple')(session);
+
 app.use(session({
+    store: new pgSession({
+        pool : pool,                // Menggunakan pool yang sudah Anda buat
+        tableName : 'session'       // Nama tabel untuk menyimpan session
+    }),
     secret: "tatriz_secret_key",
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        secure: false, // true kalau pakai HTTPS
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 4 // 4 jam
-    }
+    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 hari
 }));
 
 // 2. DATABASE INITIALIZATION (Async & Postgres Friendly)
@@ -227,26 +229,26 @@ app.post('/register-tenant', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Ambil ID Tenant tertinggi secara async
-        const row = await db.get("SELECT MAX(tenant_id) as maxid FROM settings");
-        let currentMax = (row && row.maxid) ? Number(row.maxid) : 0;
+        // 1. Ambil Max Tenant ID dengan pengaman COALESCE (Standar Postgres)
+        const row = await db.get("SELECT COALESCE(MAX(tenant_id), 0) as maxid FROM settings");
+        let currentMax = Number(row.maxid);
         let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
 
-        // Insert data ke dua tabel secara berurutan
+        // 2. Gunakan satu koneksi untuk memastikan urutan (Optional tapi lebih aman)
         await db.run(
-            "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
-            [newTenantId, nama_toko]
+            "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES ($1, $2, 1, 'TATRIZ ONLINE', 'default.png')", 
+            [parseInt(newTenantId), String(nama_toko)]
         );
 
         await db.run(
-            "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)", 
-            [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko]
+            "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES ($1, $2, $3, 'admin', $4)", 
+            [parseInt(newTenantId), String(username), hashedPassword, 'Owner ' + nama_toko]
         );
 
-        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
+        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script> ");
     } catch (error) {
         console.error("Register Error:", error);
-        res.status(500).send("Gagal mendaftar tenant baru.");
+        res.status(500).send("Gagal mendaftar: " + error.message);
     }
 });
 
