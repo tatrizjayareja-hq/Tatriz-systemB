@@ -6,25 +6,26 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
+// WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
-    run: (sql, params, cb) => {
-        const actualParams = Array.isArray(params) ? params : [];
-        const actualCb = typeof params === 'function' ? params : cb;
-        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
-            if (cb) cb(err, res);
-        });
+    query: (text, params) => pool.query(text.replace(/\?/g, ($, i) => `$${i + 1}`), params),
+    
+    // Fungsi untuk SELECT 1 data
+    get: async (sql, params = []) => {
+        const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+        return res.rows[0];
     },
-    all: (sql, params, cb) => {
-        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
-            if (cb) cb(err, res ? res.rows : []);
-        });
+    
+    // Fungsi untuk SELECT banyak data
+    all: async (sql, params = []) => {
+        const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+        return res.rows;
     },
-    get: (sql, params, cb) => {
-        pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params, (err, res) => {
-            if (cb) cb(err, res ? res.rows[0] : null);
-        });
-    },
-    serialize: (fn) => fn()
+    
+    // Fungsi untuk INSERT/UPDATE/DELETE
+    run: async (sql, params = []) => {
+        return await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
+    }
 };
 const { createClient } = require('@supabase/supabase-js');
 
@@ -99,58 +100,58 @@ function isFullFeature(req, res, next) {
 }
 
 // --- 4. GLOBAL DATA MIDDLEWARE (Pindah ke bawah setelah login agar tidak mengganggu login) ---
-app.use((req, res, next) => {
+// GLOBAL DATA MIDDLEWARE (Async Version)
+app.use(async (req, res, next) => {
     res.locals.user = req.session; 
     
-    // 1. Halaman publik tidak butuh database settings
-    if (req.path === '/' || req.path === '/login' || req.path === '/register' || req.path.startsWith('/uploads')) {
+    // 1. Abaikan untuk halaman publik
+    if (['/', '/login', '/register'].includes(req.path) || req.path.startsWith('/uploads')) {
+        res.locals.config = { nama_aplikasi: "TATRIZ SYSTEM", nama_perusahaan: "Tatriz" };
         return next();
     }
 
     const tId = req.session.tenantId;
     
-    // 2. Jika tidak ada tenantId (misal session habis), kasih data default dan lanjut
+    // 2. Jika sesi habis
     if (!tId) {
-        res.locals.config = { nama_aplikasi: "Tatriz System", nama_perusahaan: "Tatriz" };
+        res.locals.config = { nama_aplikasi: "TATRIZ SYSTEM", nama_perusahaan: "Tatriz" };
         return next();
     }
 
-    const bulanIni = new Date().toISOString().slice(0, 7);
+    try {
+        const bulanIni = new Date().toISOString().slice(0, 7);
 
-    // 3. Ambil data settings
-    db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId], (err, row) => {
-        // Jika error atau data tidak ada, buatkan objek default agar <%= config.nama_aplikasi %> tidak error
-        const configData = row || { 
+        // Ambil data secara paralel agar cepat
+        const [configData, s, b] = await Promise.all([
+            db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId]),
+            db.get("SELECT SUM(CASE WHEN jenis = 'PEMASUKAN' THEN jumlah ELSE -jumlah END) as saldo FROM arus_kas WHERE tenant_id = ?", [tId]),
+            db.get("SELECT SUM(jumlah) as terbayar FROM arus_kas WHERE kategori = 'BIAYA KONTRAKAN' AND tanggal LIKE ? AND tenant_id = ?", [bulanIni + '%', tId])
+        ]);
+
+        const config = configData || { 
             nama_aplikasi: "Tatriz System", 
             nama_perusahaan: "Tatriz",
-            target_bonus: 500000,
-            nominal_bonus_dasar: 10000,
-            kelipatan_bonus: 100000,
-            nominal_bonus_lipat: 5000
+            target_bonus: 500000, nominal_bonus_dasar: 10000, nominal_buffer: 0, beban_tetap: 0
         };
-        
-        const sqlSaldo = `SELECT SUM(CASE WHEN jenis = 'PEMASUKAN' THEN jumlah ELSE -jumlah END) as saldo FROM arus_kas WHERE tenant_id = ?`;
-        const sqlBeban = `SELECT SUM(jumlah) as terbayar FROM arus_kas WHERE kategori = 'BIAYA KONTRAKAN' AND tanggal LIKE ? AND tenant_id = ?`;
 
-        db.get(sqlSaldo, [tId], (err, s) => {
-            db.get(sqlBeban, [bulanIni + '%', tId], (err, b) => {
-                const saldoLaci = s?.saldo || 0;
-                const terbayar = b?.terbayar || 0;
-                const sisaBeban = (terbayar >= (configData.beban_tetap || 0)) ? 0 : (configData.beban_tetap || 0);
-                
-                // Simpan ke res.locals
-                res.locals.config = configData;
-                res.locals.uangKunci = {
-                    saldoLaci,
-                    totalUangDikunci: (configData.nominal_buffer || 0) + sisaBeban,
-                    profitBolehAmbil: saldoLaci - ((configData.nominal_buffer || 0) + sisaBeban),
-                    statusAman: (saldoLaci - ((configData.nominal_buffer || 0) + sisaBeban)) > 0,
-                    bebanLunas: terbayar >= (configData.beban_tetap || 0)
-                };
-                next(); 
-            });
-        });
-    });
+        const saldoLaci = s?.saldo || 0;
+        const terbayar = b?.terbayar || 0;
+        const sisaBeban = (terbayar >= (config.beban_tetap || 0)) ? 0 : (config.beban_tetap || 0);
+
+        res.locals.config = config;
+        res.locals.uangKunci = {
+            saldoLaci,
+            totalUangDikunci: (config.nominal_buffer || 0) + sisaBeban,
+            profitBolehAmbil: saldoLaci - ((config.nominal_buffer || 0) + sisaBeban),
+            statusAman: (saldoLaci - ((config.nominal_buffer || 0) + sisaBeban)) > 0,
+            bebanLunas: terbayar >= (config.beban_tetap || 0)
+        };
+        next();
+    } catch (err) {
+        console.error("Middleware Error:", err);
+        res.locals.config = { nama_aplikasi: "Tatriz (Error Connection)" };
+        next();
+    }
 });
 
 function noCache(req, res, next) {
@@ -183,27 +184,24 @@ app.get('/', (req, res) => {
     });
 });
 
-app.post('/login', (req, res) => {
+// --- LOGIN ---
+app.post('/login', async (req, res) => {
     const { username, password } = req.body;
-
-    db.get("SELECT * FROM users WHERE username = ?", [username], async (err, user) => {
-        if (err || !user) {
-            return res.send("Username tidak ditemukan.");
-        }
+    try {
+        const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
+        if (!user) return res.send("Username tidak ditemukan.");
 
         const match = await bcrypt.compare(password, user.password);
+        if (!match) return res.send("Password salah.");
 
-        if (!match) {
-            return res.send("Password salah.");
-        }
-
-        // jika cocok
         req.session.userId = user.id;
         req.session.tenantId = user.tenant_id;
         req.session.role = user.role;
 
-        res.redirect('/dashboard');
-    });
+        req.session.save(() => res.redirect('/dashboard'));
+    } catch (err) {
+        res.status(500).send("Login Error");
+    }
 });
 
 // HAPUS SEMUA app.post('/register-tenant') yang lama, ganti dengan ini:
@@ -211,42 +209,34 @@ app.post('/register-tenant', async (req, res) => {
     const { nama_toko, username, password } = req.body;
 
     try {
-        // 1. Hash password (WAJIB agar bisa login)
+        // 1. Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 2. Cari Tenant ID tertinggi (Gunakan maxid huruf kecil untuk Postgres)
-        db.get("SELECT MAX(tenant_id) as maxid FROM settings", [], (err, row) => {
-            if (err) console.error("Error Get MaxID:", err);
-            
-            let currentMax = (row && row.maxid) ? Number(row.maxid) : 0;
-            let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
+        // 2. Ambil Tenant ID tertinggi (Gunakan await)
+        const row = await db.get("SELECT MAX(tenant_id) as maxid FROM settings", []);
+        
+        let currentMax = (row && row.maxid) ? Number(row.maxid) : 0;
+        let newTenantId = (currentMax < 100) ? 100 : currentMax + 1;
 
-            // 3. Gunakan db.serialize agar urutan eksekusi benar
-            db.serialize(() => {
-                // Simpan ke Settings
-                db.run(
-                    "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
-                    [newTenantId, nama_toko]
-                );
+        // 3. Simpan data secara berurutan (tanpa db.serialize)
+        // Simpan ke Settings
+        await db.run(
+            "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES (?, ?, 1, 'TATRIZ ONLINE', 'default.png')", 
+            [newTenantId, nama_toko]
+        );
 
-                // Simpan ke Users dengan Password yang sudah di-hash
-                db.run(
-                    "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)", 
-                    [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko], 
-                    (err) => {
-                        if (err) {
-                            console.error("Error Simpan User:", err.message);
-                            return res.send("<script>alert('Username sudah dipakai atau Error Database!'); window.history.back();</script>");
-                        }
-                        console.log(`✅ Tenant Baru Terdaftar: ${username} (ID: ${newTenantId})`);
-                        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
-                    }
-                );
-            });
-        });
+        // Simpan ke Users
+        await db.run(
+            "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES (?, ?, ?, ?, ?)", 
+            [newTenantId, username, hashedPassword, 'admin', 'Owner ' + nama_toko]
+        );
+
+        console.log(`✅ Tenant Baru Terdaftar: ${username} (ID: ${newTenantId})`);
+        res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script>");
+
     } catch (error) {
-        console.error("System Error:", error);
-        res.status(500).send("Terjadi kesalahan sistem saat pendaftaran.");
+        console.error("System Error saat pendaftaran:", error);
+        res.status(500).send(`Terjadi kesalahan sistem: ${error.message}`);
     }
 });
 
@@ -347,59 +337,25 @@ app.post('/save-settings', isAdmin, upload.single('logo'), async (req, res) => {
     }
 });
 
-// --- RUTE DASHBOARD (PUSAT KONTROL) ---
-app.get('/dashboard', isAdmin, (req, res) => {
-    const tId = req.session.tenantId;
+// --- DASHBOARD ---
+app.get('/dashboard', isAdmin, async (req, res) => {
+    try {
+        const tId = req.session.tenantId;
+        const [stats, rowP, rowM] = await Promise.all([
+            db.get("SELECT COUNT(CASE WHEN status = 'Design' THEN 1 END) as jml_design, COUNT(CASE WHEN status = 'Produksi' THEN 1 END) as jml_produksi, COUNT(CASE WHEN status = 'Clear' THEN 1 END) as jml_invoice, COUNT(CASE WHEN status = 'DP/Cicil' THEN 1 END) as jml_cicil FROM po_utama WHERE tenant_id = ?", [tId]),
+            db.get("SELECT ((SELECT SUM(total_harga_customer) FROM po_utama WHERE tenant_id = ?) - (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)) as total_piutang", [tId, tId]),
+            db.get("SELECT COUNT(*) as total FROM (SELECT h.detail_id FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id WHERE h.tenant_id = ? GROUP BY h.detail_id HAVING SUM(h.jumlah_setor) > d.jumlah) as sub", [tId])
+        ]);
 
-    // 1. Query Statistik Status PO
-    const sqlStats = `
-        SELECT 
-            COUNT(CASE WHEN status = 'Design' THEN 1 END) as jml_design,
-            COUNT(CASE WHEN status = 'Produksi' THEN 1 END) as jml_produksi,
-            COUNT(CASE WHEN status = 'Clear' THEN 1 END) as jml_invoice,
-            COUNT(CASE WHEN status = 'DP/Cicil' THEN 1 END) as jml_cicil
-        FROM po_utama WHERE tenant_id = ?
-    `;
-
-    // 2. Query Total Piutang Semua Customer (Ini yang memperbaiki angka 0)
-    const sqlPiutang = `
-        SELECT (
-            (SELECT SUM(total_harga_customer) FROM po_utama WHERE tenant_id = ?) - 
-            (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)
-        ) as total_piutang
-    `;
-
-    // 3. Query Masalah Produksi (Over-limit)
-    const sqlMasalah = `
-        SELECT COUNT(*) as total 
-        FROM (
-            SELECT h.detail_id 
-            FROM hasil_kerja h 
-            JOIN po_detail d ON h.detail_id = d.id 
-            WHERE h.tenant_id = ?
-            GROUP BY h.detail_id 
-            HAVING SUM(h.jumlah_setor) > d.jumlah
-        )
-    `;
-
-    db.get(sqlStats, [tId], (err, stats) => {
-        db.get(sqlPiutang, [tId, tId], (err, rowP) => {
-            db.get(sqlMasalah, [tId], (err, rowM) => {
-                
-                // Pastikan jika hasil query NULL (karena data baru), kita set ke 0
-                const piutangReal = rowP?.total_piutang || 0;
-                const masalahProduksi = rowM?.total || 0;
-
-                res.render('dashboard', {
-                    stats: stats || { jml_design: 0, jml_produksi: 0, jml_invoice: 0, jml_cicil: 0 },
-                    totalPiutangSemua: piutangReal, // PINDAHKAN KE VARIABEL INI
-                    jumlahMasalah: masalahProduksi,
-                    user: req.session
-                    // uangKunci & config sudah dikirim otomatis oleh middleware res.locals
-                });
-            });
+        res.render('dashboard', {
+            stats: stats || { jml_design: 0, jml_produksi: 0, jml_invoice: 0, jml_cicil: 0 },
+            totalPiutangSemua: rowP?.total_piutang || 0,
+            jumlahMasalah: rowM?.total || 0,
+            user: req.session
         });
-    });
+    } catch (err) {
+        res.status(500).send("Dashboard Error");
+    }
 });
 
 // --- RUTE SETUP ---
@@ -474,73 +430,60 @@ app.post('/save-settings-all', isAdmin, (req, res) => {
 });
 
 // --- RUTE MANAJEMEN PESANAN (PO-DATA) ---
-app.get('/po-data', isAdmin, (req, res) => {
-    const tId = req.session.tenantId; // Ambil ID Tenant dari session
+app.get('/po-data', isAdmin, async (req, res) => {
+    const tId = req.session.tenantId;
     const { search_po, search_customer } = req.query;
 
-    // 1. Query Utama: Mengambil daftar PO milik tenant tersebut
-    // Kita gunakan subquery untuk menghitung qty_tampil dan variasi_jumlah secara real-time
-    let query = `
-        SELECT p.*, 
-        (SELECT jumlah FROM po_detail WHERE po_id = p.id LIMIT 1) as qty_tampil,
-        (SELECT COUNT(DISTINCT jumlah) FROM po_detail WHERE po_id = p.id) as variasi_jumlah
-        FROM po_utama p 
-        WHERE p.tenant_id = ?
-    `;
-    let params = [tId];
-
-    // Tambahan filter jika ada input dari search bar
-    if (search_po) {
-        query += " AND nama_po LIKE ?";
-        params.push(`%${search_po}%`);
-    }
-    if (search_customer) {
-        query += " AND customer LIKE ?";
-        params.push(`%${search_customer}%`);
-    }
-
-    // Urutan default: Design di atas, Lunas di paling bawah
-    query += ` ORDER BY 
-        CASE 
-            WHEN status = 'Design' THEN 1
-            WHEN status = 'Produksi' THEN 2
-            WHEN status = 'QC' THEN 3
-            WHEN status = 'Clear' THEN 4
-            WHEN status = 'DP/Cicil' THEN 5
-            WHEN status = 'Lunas' THEN 6
-            ELSE 7
-        END ASC, tanggal DESC, id DESC`;
-
-    db.all(query, params, (err, orders) => {
-        if (err) {
-            console.error(err.message);
-            return res.status(500).send("Gagal memuat data pesanan.");
-        }
-
-        // 2. Query Detail: Mengambil rincian item (untuk isi laci/detail-row)
-        // Kita join dengan po_utama untuk memastikan hanya mengambil detail milik tenant ini
-        const sqlDetails = `
-            SELECT d.* FROM po_detail d
-            JOIN po_utama p ON d.po_id = p.id
+    try {
+        // 1. Susun Query Utama
+        let query = `
+            SELECT p.*, 
+            (SELECT jumlah FROM po_detail WHERE po_id = p.id LIMIT 1) as qty_tampil,
+            (SELECT COUNT(DISTINCT jumlah) FROM po_detail WHERE po_id = p.id) as variasi_jumlah
+            FROM po_utama p 
             WHERE p.tenant_id = ?
         `;
+        let params = [tId];
 
-        db.all(sqlDetails, [tId], (err, allDetails) => {
-            if (err) {
-                console.error(err.message);
-                return res.status(500).send("Gagal memuat rincian desain.");
-            }
+        if (search_po) {
+            query += " AND nama_po LIKE ?";
+            params.push(`%${search_po}%`);
+        }
+        if (search_customer) {
+            query += " AND customer LIKE ?";
+            params.push(`%${search_customer}%`);
+        }
 
-            // Render ke po-data.ejs dengan membawa data orders dan details
-            res.render('po-data', { 
-                orders: orders || [], 
-                details: allDetails || [],
-                user: req.session,
-                filters: req.query 
-            });
+        query += ` ORDER BY 
+            CASE 
+                WHEN status = 'Design' THEN 1
+                WHEN status = 'Produksi' THEN 2
+                WHEN status = 'QC' THEN 3
+                WHEN status = 'Clear' THEN 4
+                WHEN status = 'DP/Cicil' THEN 5
+                WHEN status = 'Lunas' THEN 6
+                ELSE 7
+            END ASC, tanggal DESC, id DESC`;
+
+        // 2. Jalankan Query secara paralel
+        const [orders, allDetails] = await Promise.all([
+            db.all(query, params),
+            db.all(`SELECT d.* FROM po_detail d JOIN po_utama p ON d.po_id = p.id WHERE p.tenant_id = ?`, [tId])
+        ]);
+
+        res.render('po-data', { 
+            orders: orders || [], 
+            details: allDetails || [],
+            user: req.session,
+            filters: req.query 
         });
-    });
+
+    } catch (err) {
+        console.error("Gagal memuat PO Data:", err);
+        res.status(500).send("Internal Server Error");
+    }
 });
+
 
 app.get('/po-baru', (req, res) => {
     if (req.session.userId) {
@@ -656,28 +599,37 @@ app.get('/delete-mesin/:id', isAdmin, (req, res) => {
     db.run("DELETE FROM mesin WHERE id=? AND tenant_id=?", [req.params.id, req.session.tenantId], () => res.redirect('/setup-auth'));
 });
 
-app.post('/simpan-kerja', (req, res) => {
-    const tId = req.session.tenantId;
+app.post('/simpan-kerja', async (req, res) => {
     const { tanggal, shift, po_id, detail_id, jumlah_setor, mesin_id } = req.body;
     const userId = req.session.userId;
+    const tId = req.session.tenantId;
 
-    if (jumlah_setor && Number(jumlah_setor) > 0) {
-        db.run(`INSERT INTO hasil_kerja (tenant_id, operator_id, po_id, detail_id, tanggal, shift, jumlah_setor, mesin_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
-                [tId, userId, po_id, detail_id, tanggal, shift, jumlah_setor, mesin_id], (err) => {
-            
-            // Cek apakah PO sudah selesai (QC)
-            const checkSql = `SELECT (SELECT SUM(jumlah) FROM po_detail WHERE po_id = ?) as target,
-                                     (SELECT SUM(jumlah_setor) FROM hasil_kerja WHERE po_id = ?) as realisasi`;
-            db.get(checkSql, [po_id, po_id], (err, row) => {
-                if (row && row.realisasi >= row.target) {
-                    db.run("UPDATE po_utama SET status = 'QC' WHERE id = ?", [po_id]);
-                }
-                res.redirect('/hasil-saya');
-            });
-        });
-    } else {
-        res.send("<script>alert('Jumlah tidak valid!'); window.history.back();</script>");
+    if (!jumlah_setor || Number(jumlah_setor) <= 0) {
+        return res.send("<script>alert('Jumlah tidak valid!'); window.history.back();</script>");
+    }
+
+    try {
+        // 1. Simpan hasil kerja
+        const sqlInsert = `INSERT INTO hasil_kerja (tenant_id, operator_id, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor) 
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+        await db.run(sqlInsert, [tId, userId, po_id, detail_id, mesin_id, tanggal, shift, jumlah_setor]);
+
+        // 2. Cek apakah PO sudah selesai (Auto-update ke QC)
+        const sqlCheck = `
+            SELECT 
+                (SELECT SUM(jumlah) FROM po_detail WHERE po_id = ?) as target,
+                (SELECT SUM(jumlah_setor) FROM hasil_kerja WHERE po_id = ?) as realisasi
+        `;
+        const row = await db.get(sqlCheck, [po_id, po_id]);
+
+        if (row && Number(row.realisasi) >= Number(row.target)) {
+            await db.run("UPDATE po_utama SET status = 'QC' WHERE id = ?", [po_id]);
+        }
+
+        res.redirect('/hasil-saya');
+    } catch (err) {
+        console.error("Gagal simpan hasil kerja:", err);
+        res.status(500).send("Gagal menyimpan data produksi.");
     }
 });
 
@@ -868,75 +820,47 @@ app.get('/edit-po/:id', isAdmin, (req, res) => {
     });
 });
 
-app.post('/update-po/:id', isAdmin, (req, res) => {
-    const poId = req.params.id;
+app.post('/update-po', isAdmin, async (req, res) => {
+    const { id, nama_po, customer, tanggal, status, keterangan, qty, harga_customer, harga_operator } = req.body;
     const tId = req.session.tenantId;
-    const tLevel = req.session.tenantLevel; // Ambil level untuk pengecekan
 
-    let { 
-        tanggal, nama_po, customer, status, 
-        detail_ids, jenis_bordir, nama_desain, 
-        jumlah, harga_cmt, harga_operator, harga_customer 
-    } = req.body;
+    try {
+        // 1. Update data utama
+        await db.run(
+            "UPDATE po_utama SET nama_po = ?, customer = ?, tanggal = ?, status = ?, keterangan = ? WHERE id = ? AND tenant_id = ?",
+            [nama_po, customer, tanggal, status, keterangan, id, tId]
+        );
 
-    // 1. Pastikan semua input rincian menjadi Array
-    const idList = Array.isArray(detail_ids) ? detail_ids : (detail_ids ? [detail_ids] : []);
-    const jbList = Array.isArray(jenis_bordir) ? jenis_bordir : [jenis_bordir];
-    const dsList = Array.isArray(nama_desain) ? nama_desain : [nama_desain];
-    const jmlList = Array.isArray(jumlah) ? jumlah : [jumlah];
-    const hrgCmtList = Array.isArray(harga_cmt) ? harga_cmt : [harga_cmt];
-    const hrgOpList = Array.isArray(harga_operator) ? harga_operator : [harga_operator];
-    const hrgCuList = Array.isArray(harga_customer) ? harga_customer : [harga_customer];
+        // 2. Bersihkan detail lama (agar tidak duplikat saat edit)
+        await db.run("DELETE FROM po_detail WHERE po_id = ?", [id]);
 
-    db.serialize(() => {
-        // 2. Update Header PO (Keamanan: Pastikan milik tenant yang login)
-        db.run(`UPDATE po_utama SET tanggal=?, nama_po=?, customer=?, status=? WHERE id=? AND tenant_id=?`, 
-        [tanggal, nama_po, customer, status, poId, tId]);
+        // 3. Masukkan detail baru secara massal (Looping Await)
+        let totalHarga = 0;
+        const qtys = Array.isArray(qty) ? qty : [qty];
+        const h_custs = Array.isArray(harga_customer) ? harga_customer : [harga_customer];
+        const h_ops = Array.isArray(harga_operator) ? harga_operator : [harga_operator];
 
-        let totalTagihanBaru = 0;
-
-        // 3. Olah Rincian Item
-        for (let i = 0; i < jbList.length; i++) {
-            if (!jbList[i]) continue;
-
-            const qty = Number(jmlList[i]) || 0;
-            const hCu = Number(hrgCuList[i]) || 0;
+        for (let i = 0; i < qtys.length; i++) {
+            const q = Number(qtys[i]) || 0;
+            const hc = Number(h_custs[i]) || 0;
+            const ho = Number(h_ops[i]) || 0;
             
-            // --- LOGIKA TRIK OTOMATISASI ---
-            // Jika Level 1 dan bukan Developer (Tenant 1), paksa Harga Op & CMT mengikuti Harga Customer
-            let finalHOp, finalHCmt;
-            
-            if (tId !== 1 && tLevel < 2) {
-                finalHOp = hCu;   // Disamakan dengan harga jual
-                finalHCmt = 0;    // Level 1 biasanya tidak pakai fitur makloon/CMT
-            } else {
-                finalHOp = Number(hrgOpList[i]) || 0;
-                finalHCmt = Number(hrgCmtList[i]) || 0;
-            }
+            totalHarga += (q * hc);
 
-            totalTagihanBaru += (qty * hCu);
-
-            if (idList[i]) {
-                // UPDATE: Baris rincian yang sudah ada
-                db.run(`UPDATE po_detail SET 
-                        jenis_bordir=?, nama_desain=?, jumlah=?, 
-                        harga_cmt=?, harga_operator=?, harga_customer=? 
-                        WHERE id=? AND po_id=?`,
-                [jbList[i], dsList[i], qty, finalHCmt, finalHOp, hCu, idList[i], poId]);
-            } else {
-                // INSERT: Baris rincian baru
-                db.run(`INSERT INTO po_detail (po_id, jenis_bordir, nama_desain, jumlah, harga_cmt, harga_operator, harga_customer) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [poId, jbList[i], dsList[i], qty, finalHCmt, finalHOp, hCu]);
-            }
+            await db.run(
+                "INSERT INTO po_detail (po_id, jumlah, harga_customer, harga_operator) VALUES (?, ?, ?, ?)",
+                [id, q, hc, ho]
+            );
         }
-        
-        // 4. Sinkronisasi Total Tagihan di Header
-        db.run(`UPDATE po_utama SET total_harga_customer = ? WHERE id = ?`, [totalTagihanBaru, poId]);
-        
-        console.log(`✅ PO #${poId} updated. Tenant: ${tId}, Level: ${tLevel}`);
+
+        // 4. Update total harga di tabel utama
+        await db.run("UPDATE po_utama SET total_harga_customer = ? WHERE id = ?", [totalHarga, id]);
+
         res.redirect('/po-data');
-    });
+    } catch (err) {
+        console.error("Gagal update PO:", err);
+        res.status(500).send("Gagal memperbarui data pesanan.");
+    }
 });
 
 // 2. RUTE CETAK NOTA (A6)
@@ -1217,81 +1141,53 @@ app.get('/hapus-produksi/:id', isAdmin, (req, res) => {
 });
 
 // --- RUTE LAPORAN KAS & ANALISIS PROFIT ---
-app.get('/laporan-kas', isAdmin, (req, res) => {
+app.get('/laporan-kas', isAdmin, async (req, res) => {
     const tId = req.session.tenantId;
     const bulanIni = req.query.bulan || new Date().toISOString().slice(0, 7);
     
-    db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId], (err, config) => {
-        const conf = config || { beban_tetap: 0, nominal_buffer: 0 };
-
-        // 1. Query Statistik Keuangan
-        const sqlData = `
-            SELECT 
+    try {
+        // Ambil Config & Data Statistik secara paralel
+        const [conf, data, rowP, rincian, monitor] = await Promise.all([
+            db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId]),
+            db.get(`SELECT 
                 (SELECT SUM(h.jumlah_setor * d.harga_customer) FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id WHERE h.tanggal LIKE ? AND h.tenant_id = ?) as prod_bln,
                 (SELECT SUM(jumlah) FROM arus_kas WHERE jenis = 'PENGELUARAN' AND kategori NOT IN ('BIAYA KONTRAKAN', 'BAYAR HUTANG') AND tanggal LIKE ? AND tenant_id = ?) as op_bln,
                 (SELECT SUM(jumlah) FROM arus_kas WHERE kategori = 'BIAYA KONTRAKAN' AND tanggal LIKE ? AND tenant_id = ?) as k_bayar_bln,
                 (SELECT SUM(CASE WHEN kategori = 'HUTANG' THEN jumlah WHEN kategori = 'BAYAR HUTANG' THEN -jumlah ELSE 0 END) FROM arus_kas WHERE tenant_id = ?) as hutang_riil,
                 (SELECT SUM(CASE WHEN jenis = 'PEMASUKAN' THEN jumlah ELSE -jumlah END) FROM arus_kas WHERE tenant_id = ?) as saldo_laci
-        `;
+            `, [bulanIni + '%', tId, bulanIni + '%', tId, bulanIni + '%', tId, tId, tId]),
+            db.get(`SELECT (
+                (SELECT SUM(h2.jumlah_setor * d2.harga_customer) FROM hasil_kerja h2 JOIN po_detail d2 ON h2.detail_id = d2.id WHERE h2.tenant_id = ?) - 
+                (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)
+            ) as piutang_total`, [tId, tId]),
+            db.all(`SELECT ak.*, p.customer, p.nama_po FROM arus_kas ak LEFT JOIN po_utama p ON ak.po_id = p.id WHERE ak.tanggal LIKE ? AND ak.tenant_id = ? ORDER BY ak.tanggal DESC, ak.id DESC`, [bulanIni + '%', tId]),
+            db.all(`SELECT h.tanggal, SUM(h.jumlah_setor * d.harga_customer) as total_harian FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id WHERE h.tanggal LIKE ? AND h.tenant_id = ? GROUP BY h.tanggal ORDER BY h.tanggal DESC`, [bulanIni + '%', tId])
+        ]);
 
-        db.get(sqlData, [bulanIni + '%', tId, bulanIni + '%', tId, bulanIni + '%', tId, tId, tId], (err, data) => {
-            if (err) {
-                console.error("❌ Error SQL Statistik:", err.message);
-                return res.status(500).send("Error hitung statistik keuangan.");
-            }
+        const activeConfig = conf || { beban_tetap: 0, nominal_buffer: 0 };
+        const prod = data?.prod_bln || 0;
+        const op = data?.op_bln || 0;
+        const k_terbayar = data?.k_bayar_bln || 0;
+        const sisaBebanKontrakan = Math.max(0, (activeConfig.beban_tetap || 0) - k_terbayar);
 
-            // 2. Query Piutang Berjalan (Akumulatif)
-            // Dipisah agar tidak memberatkan query utama
-            const sqlPiutang = `
-                SELECT (
-                    (SELECT SUM(h2.jumlah_setor * d2.harga_customer) FROM hasil_kerja h2 JOIN po_detail d2 ON h2.detail_id = d2.id WHERE h2.tenant_id = ?) - 
-                    (SELECT SUM(jumlah) FROM arus_kas WHERE kategori IN ('PEMBAYARAN BORDIR', 'PELUNASAN', 'DP/CICILAN') AND tenant_id = ?)
-                ) as piutang_total
-            `;
-
-            db.get(sqlPiutang, [tId, tId], (err, rowP) => {
-                
-                // 3. Query Rincian Transaksi
-                const sqlRincian = `SELECT ak.*, p.customer, p.nama_po FROM arus_kas ak 
-                                    LEFT JOIN po_utama p ON ak.po_id = p.id 
-                                    WHERE ak.tanggal LIKE ? AND ak.tenant_id = ?
-                                    ORDER BY ak.tanggal DESC, ak.id DESC`;
-
-                db.all(sqlRincian, [bulanIni + '%', tId], (err, rincian) => {
-                    
-                    // 4. Query Omzet Harian
-                    const sqlMonitor = `SELECT h.tanggal, SUM(h.jumlah_setor * d.harga_customer) as total_harian
-                                        FROM hasil_kerja h JOIN po_detail d ON h.detail_id = d.id 
-                                        WHERE h.tanggal LIKE ? AND h.tenant_id = ?
-                                        GROUP BY h.tanggal ORDER BY h.tanggal DESC`;
-
-                    db.all(sqlMonitor, [bulanIni + '%', tId], (err, monitor) => {
-                        
-                        // PERHITUNGAN VARIABEL
-                        const prod = data?.prod_bln || 0;
-                        const op = data?.op_bln || 0;
-                        const k_terbayar = data?.k_bayar_bln || 0;
-                        const estimasiProfit = prod - op - conf.beban_tetap;
-                        const sisaBebanKontrakan = (conf.beban_tetap - k_terbayar) < 0 ? 0 : (conf.beban_tetap - k_terbayar);
-
-                        res.render('laporan-kas', {
-                            bulanIni,
-                            nilaiProduksi: prod,
-                            totalBiaya: op,
-                            sisaHutangRiil: data?.hutang_riil || 0,
-                            sisaBebanKontrakan: sisaBebanKontrakan,
-                            estimasiProfit: estimasiProfit,
-                            saldoRiil: data?.saldo_laci || 0,
-                            piutangBerjalan: rowP?.piutang_total || 0,
-                            monitorHarian: monitor || [],
-                            rincianKas: rincian || [],
-                            config: conf
-                        });
-                    });
-                });
-            });
+        res.render('laporan-kas', {
+            bulanIni,
+            nilaiProduksi: prod,
+            totalBiaya: op,
+            sisaHutangRiil: data?.hutang_riil || 0,
+            sisaBebanKontrakan,
+            estimasiProfit: prod - op - (activeConfig.beban_tetap || 0),
+            saldoRiil: data?.saldo_laci || 0,
+            piutangBerjalan: rowP?.piutang_total || 0,
+            monitorHarian: monitor || [],
+            rincianKas: rincian || [],
+            config: activeConfig
         });
-    });
+
+    } catch (err) {
+        console.error("Laporan Kas Error:", err);
+        res.status(500).send("Gagal memuat laporan keuangan.");
+    }
 });
 
 app.get('/input-kas', (req, res) => {
@@ -1820,35 +1716,32 @@ app.post('/developer/reset-pass', isAdmin, async (req, res) => {
 });
 
 // --- FUNGSI OTOMATIS UPDATE STATUS PO BERDASARKAN PEMBAYARAN ---
-function updateStatusPO(poId) {
-    const sqlCek = `
-        SELECT 
-            (SELECT total_harga_customer FROM po_utama WHERE id = ?) as total_tagihan,
-            (SELECT SUM(jumlah) FROM arus_kas WHERE po_id = ?) as total_masuk
-    `;
-    db.get(sqlCek, [poId, poId], (err, row) => {
-        if (err) {
-            console.error("Gagal cek status PO:", err.message);
-            return;
-        }
+async function updateStatusPO(poId) {
+    try {
+        const sqlCek = `
+            SELECT 
+                (SELECT total_harga_customer FROM po_utama WHERE id = ?) as total_tagihan,
+                (SELECT SUM(jumlah) FROM arus_kas WHERE po_id = ?) as total_masuk
+        `;
+        const row = await db.get(sqlCek, [poId, poId]);
 
-        if (row && row.total_tagihan > 0) {
-            let statusBaru = (row.total_masuk >= row.total_tagihan) ? 'Lunas' : 'DP/Cicil';
-            db.run("UPDATE po_utama SET status = ? WHERE id = ?", [statusBaru, poId], (err) => {
-                if (!err) console.log(`✅ Status PO #${poId} diperbarui menjadi: ${statusBaru}`);
-            });
+        if (row && Number(row.total_tagihan) > 0) {
+            let statusBaru = (Number(row.total_masuk) >= Number(row.total_tagihan)) ? 'Lunas' : 'DP/Cicil';
+            await db.run("UPDATE po_utama SET status = ? WHERE id = ?", [statusBaru, poId]);
+            console.log(`✅ Status PO #${poId} auto-update: ${statusBaru}`);
         }
-    });
+    } catch (err) {
+        console.error("Gagal auto-update status PO:", err);
+    }
 }
 
-app.post('/proses-print-gaji', isAdmin, (req, res) => {
+app.post('/proses-print-gaji', isAdmin, async (req, res) => {
     const tId = req.session.tenantId;
     const { tgl_awal, tgl_akhir, operator_ids, nama, gp, hari_kerja, lembur, bonus, kasbon } = req.body;
 
-    // 1. Ambil Config dari Database
-    db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId], (err, configRow) => {
-        if (err) return res.status(500).send("Gagal mengambil pengaturan.");
-        
+    try {
+        // 1. Ambil Config secara Async
+        const configRow = await db.get("SELECT * FROM settings WHERE tenant_id = ?", [tId]);
         const config = configRow || { nama_perusahaan: "Tatriz" };
 
         // 2. Pastikan input menjadi array (antisipasi jika hanya 1 operator)
@@ -1862,10 +1755,12 @@ app.post('/proses-print-gaji', isAdmin, (req, res) => {
 
         let dataGaji = [];
 
-        // 3. Loop Perhitungan
+        // 3. Loop Perhitungan (Sekarang jauh lebih aman karena data config sudah pasti ada)
         for (let i = 0; i < ids.length; i++) {
+            if (!ids[i]) continue; // Skip jika ID kosong
+
             let gajiPokok = Number(gpList[i]) || 0;
-            let inputHK = String(hkList[i]) || "0";
+            let inputHK = String(hkList[i] || "0");
             let jamLembur = Number(lbList[i]) || 0;
             let totalBoronganBonus = Number(bnList[i]) || 0;
             let totalKasbon = Number(kbList[i]) || 0;
@@ -1901,8 +1796,13 @@ app.post('/proses-print-gaji', isAdmin, (req, res) => {
             config: config,
             user: req.session 
         });
-    }); // Tutup db.get
-}); // Tutup app.post
+
+    } catch (err) {
+        console.error("Gagal memproses print gaji:", err);
+        res.status(500).send("Terjadi kesalahan saat menyiapkan data cetak.");
+    }
+});
+
 
 // JALANKAN SERVER
 app.listen(port, () => console.log(`🚀 Aplikasi Tatriz berjalan di http://localhost:${port}`));
