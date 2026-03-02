@@ -251,6 +251,7 @@ app.post('/register-tenant', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
 
+
         // 1. Ambil Max Tenant ID dengan pengaman COALESCE (Standar Postgres)
         const row = await db.get("SELECT COALESCE(MAX(tenant_id), 0) as maxid FROM settings");
         let currentMax = Number(row.maxid);
@@ -258,13 +259,14 @@ app.post('/register-tenant', async (req, res) => {
 
         // 2. Gunakan satu koneksi untuk memastikan urutan (Optional tapi lebih aman)
         await db.run(
-            "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path) VALUES ($1, $2, 1, 'TATRIZ ONLINE', 'default.png')", 
-            [parseInt(newTenantId), String(nama_toko)]
+            "INSERT INTO settings (tenant_id, nama_perusahaan, level, nama_aplikasi, logo_path, password_admin) VALUES ($1, $2, 1, 'TATRIZ ONLINE', 'default.png', $3)", 
+            [parseInt(newTenantId), String(nama_toko), String(password)] // Simpan password mentah untuk setup-auth sesuai logika lama Anda
         );
 
+        // 2. Insert ke tabel users tetap sama
         await db.run(
             "INSERT INTO users (tenant_id, username, password, role, nama_lengkap) VALUES ($1, $2, $3, 'admin', $4)", 
-            [parseInt(newTenantId), String(username), hashedPassword, 'Owner ' + nama_toko]
+            [parseInt(newTenantId), String(username), hashedPassword, 'admin', 'Owner ' + nama_toko]
         );
 
         res.send("<script>alert('Pendaftaran Berhasil! Silakan Login.'); window.location='/';</script> ");
@@ -290,84 +292,43 @@ const upload = multer({
 
 
 
-app.post('/save-settings', isAdmin, upload.single('logo'), async (req, res) => {
+app.post('/save-settings-all', async (req, res) => {
+    const tId = Number(req.session.tenantId);
+    const { 
+        nama_perusahaan, no_hp, alamat, 
+        target_bonus, nominal_bonus_dasar, 
+        nominal_buffer, beban_tetap,
+        nama_mesin_baru 
+    } = req.body;
+
     try {
-        const tId = req.session.tenantId; 
-        const { 
-            nama_aplikasi, 
-            nama_perusahaan, 
-            alamat, 
-            no_hp, 
-            password_admin, 
-            target_bonus, 
-            beban_tetap, 
-            nominal_buffer 
-        } = req.body;
+        // 1. Update Tabel Settings
+        await db.run(
+            `UPDATE settings SET 
+                nama_perusahaan = $1, no_hp = $2, alamat = $3, 
+                target_bonus = $4, nominal_bonus_dasar = $5, 
+                nominal_buffer = $6, beban_tetap = $7 
+            WHERE tenant_id = $8::INTEGER`,
+            [
+                nama_perusahaan, no_hp, alamat, 
+                Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
+                Number(nominal_buffer) || 0, Number(beban_tetap) || 0, 
+                tId
+            ]
+        );
 
-        let logoUrl = null;
-
-        // ✅ Jika ada file logo, upload ke Supabase Storage
-        if (req.file) {
-            const fileExt = req.file.originalname.split('.').pop();
-            const fileName = `logo-${tId}-${uuidv4()}.${fileExt}`;
-
-            const { data, error } = await supabase.storage
-                .from("uploads") // nama bucket
-                .upload(fileName, req.file.buffer, {
-                    contentType: req.file.mimetype,
-                    upsert: true,
-                });
-
-            if (error) {
-                console.error(error);
-                return res.status(500).send("Gagal upload logo.");
-            }
-
-            // Ambil public URL
-            const { data: publicUrl } = supabase.storage
-                .from("uploads")
-                .getPublicUrl(fileName);
-
-            logoUrl = publicUrl.publicUrl;
+        // 2. Jika ada nama mesin baru diisi, tambahkan ke tabel mesin
+        if (nama_mesin_baru && nama_mesin_baru.trim() !== "") {
+            await db.run(
+                "INSERT INTO mesin (tenant_id, nama_mesin) VALUES ($1::INTEGER, $2)",
+                [tId, nama_mesin_baru]
+            );
         }
 
-        let sqlUpdate = `UPDATE settings SET 
-            nama_aplikasi=?, 
-            nama_perusahaan=?, 
-            alamat=?, 
-            no_hp=?, 
-            password_admin=?, 
-            target_bonus=?, 
-            beban_tetap=?, 
-            nominal_buffer=?`;
-
-        let params = [
-            nama_aplikasi, 
-            nama_perusahaan, 
-            alamat, 
-            no_hp, 
-            password_admin, 
-            target_bonus, 
-            beban_tetap, 
-            nominal_buffer
-        ];
-
-        if (logoUrl) {
-            sqlUpdate += `, logo_path=?`;
-            params.push(logoUrl);
-        }
-
-        sqlUpdate += ` WHERE tenant_id=?`;
-        params.push(tId);
-
-        db.run(sqlUpdate, params, (err) => {
-            if (err) return res.status(500).send("Gagal menyimpan pengaturan.");
-            res.send("<script>alert('Pengaturan Berhasil Disimpan!'); window.location='/dashboard';</script>");
-        });
-
+        res.send("<script>alert('Semua perubahan berhasil disimpan!'); window.location='/setup';</script>");
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Terjadi kesalahan server.");
+        console.error("Save Settings Error:", err);
+        res.status(500).send("Gagal menyimpan: " + err.message);
     }
 });
 
@@ -661,20 +622,35 @@ app.post('/save-user', isAdmin, (req, res) => {
 });
 
 // B. Simpan/Update Mesin
-app.post('/save-mesin', isAdmin, (req, res) => {
-    const tId = req.session.tenantId;
+app.post('/save-mesin', async (req, res) => {
+    const tId = Number(req.session.tenantId);
     const { mesin_id, nama_mesin } = req.body;
 
-    if (mesin_id) {
-        db.run("UPDATE mesin SET nama_mesin=? WHERE id=? AND tenant_id=?", [nama_mesin, mesin_id, tId], () => res.redirect('/setup-auth'));
-    } else {
-        db.run("INSERT INTO mesin (tenant_id, nama_mesin) VALUES (?,?)", [tId, nama_mesin], () => res.redirect('/setup-auth'));
+    try {
+        await db.run(
+            "UPDATE mesin SET nama_mesin = $1 WHERE id = $2::INTEGER AND tenant_id = $3::INTEGER",
+            [nama_mesin, Number(mesin_id), tId]
+        );
+        res.redirect('/setup');
+    } catch (err) {
+        res.status(500).send("Gagal update mesin: " + err.message);
     }
 });
 
 // C. Hapus Mesin
-app.get('/delete-mesin/:id', isAdmin, (req, res) => {
-    db.run("DELETE FROM mesin WHERE id=? AND tenant_id=?", [req.params.id, req.session.tenantId], () => res.redirect('/setup-auth'));
+app.get('/delete-mesin/:id', async (req, res) => {
+    const tId = Number(req.session.tenantId);
+    const mId = Number(req.params.id);
+
+    try {
+        await db.run(
+            "DELETE FROM mesin WHERE id = $1::INTEGER AND tenant_id = $2::INTEGER",
+            [mId, tId]
+        );
+        res.redirect('/setup');
+    } catch (err) {
+        res.status(500).send("Gagal hapus mesin: " + err.message);
+    }
 });
 
 app.post('/simpan-kerja', async (req, res) => {
