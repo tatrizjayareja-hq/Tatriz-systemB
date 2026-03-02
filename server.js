@@ -9,6 +9,7 @@ const pool = new Pool({
 // WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
     get: async (sql, params = []) => {
+        // Tambahkan logging kecil untuk debug jika perlu: console.log("Query Get:", sql, params);
         const res = await pool.query(sql.replace(/\?/g, ($, i) => `$${i + 1}`), params);
         return res.rows[0];
     },
@@ -421,13 +422,12 @@ app.post('/setup-auth', async (req, res) => {
 
 // 2. GET SETUP (Halaman Pengaturan User & Mesin)
 app.get('/setup', noCache, async (req, res) => {
-    // Cek izin akses setup
     if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
     
+    // PAKSA JADI ANGKA DI SINI
     const tId = Number(req.session.tenantId);
 
     try {
-        // Ambil data secara paralel agar cepat (Ciri khas aplikasi modern)
         const [users, machines] = await Promise.all([
             db.all("SELECT * FROM users WHERE tenant_id = $1 ORDER BY id ASC", [tId]),
             db.all("SELECT * FROM mesin WHERE tenant_id = $1 ORDER BY id ASC", [tId])
@@ -435,8 +435,8 @@ app.get('/setup', noCache, async (req, res) => {
 
         res.render('setup', { users, machines });
     } catch (err) {
-        console.error("Setup Page Error:", err);
-        res.status(500).send("Gagal memuat data setup: " + err.message);
+        console.error("Setup Page Error Detail:", err);
+        res.status(500).send("Gagal memuat data setup.");
     }
 });
 
