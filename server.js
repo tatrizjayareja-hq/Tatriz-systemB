@@ -407,41 +407,52 @@ app.get('/dashboard', isAdmin, async (req, res) => {
     }
 });
 
-// --- RUTE SETUP ---
-// 1. POST SETUP AUTH (Proses Cek Password Setup)
+// --- RUTE SETUP (VERSI FIX) ---
+
+// 1. TAMPILKAN HALAMAN VERIFIKASI (GET)
+app.get('/setup-auth', (req, res) => {
+    // Kita pastikan variabel config tersedia untuk EJS
+    // Jika middleware global sudah jalan, biasanya res.locals.config sudah ada
+    // Tapi kita kirim manual di sini sebagai cadangan agar aman
+    const config = res.locals.config || { nama_perusahaan: "Tatriz" };
+    res.render('setup-auth', { config }); 
+});
+
+// 2. PROSES VERIFIKASI (POST)
 app.post('/setup-auth', async (req, res) => {
     const { password } = req.body;
-    const tId = Number(req.session.tenantId); // Paksa jadi angka untuk Postgres
+    const tId = Number(req.session.tenantId); 
 
     try {
-        const row = await db.get("SELECT password_admin FROM settings WHERE tenant_id = $1", [tId]);
+        // Gunakan $1::INTEGER agar Postgres tidak bingung tipe data
+        const row = await db.get("SELECT password_admin FROM settings WHERE tenant_id = $1::INTEGER", [tId]);
         
-        // Jika di database masih NULL/kosong, gunakan default 'admin123'
+        // Default password 'admin123' jika di database belum diatur
         const correctPassword = row?.password_admin || 'admin123'; 
 
         if (String(password) === String(correctPassword)) {
             req.session.isAdminSetup = true; 
+            // Simpan session sebelum pindah halaman (PENTING di Vercel)
             req.session.save(() => {
                 res.redirect('/setup');
             });
         } else {
-            res.send("<script>alert('Password Admin Salah!'); window.location='/setup-auth';</script>");
+            res.send("<script>alert('Password Salah!'); window.location='/setup-auth';</script>");
         }
     } catch (err) {
-        console.error("Setup Auth Error:", err);
-        res.status(500).send("Gagal autentikasi setup.");
+        console.error("Auth Error:", err);
+        res.status(500).send("Gagal verifikasi.");
     }
 });
 
-// 2. GET SETUP (Halaman Pengaturan User & Mesin)
+// 3. HALAMAN PENGATURAN (GET SETUP)
 app.get('/setup', noCache, async (req, res) => {
-    //if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
+    // Aktifkan kembali proteksi pintu gerbang
+    if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
     
-    // Pastikan ini benar-benar angka
     const tId = Number(req.session.tenantId) || 0;
 
     try {
-        // Kita paksa Postgres membaca $1 sebagai INTEGER dengan ::INTEGER
         const [users, machines] = await Promise.all([
             db.all("SELECT * FROM users WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId]),
             db.all("SELECT * FROM mesin WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId])
@@ -452,11 +463,6 @@ app.get('/setup', noCache, async (req, res) => {
         console.error("Setup Page Error Detail:", err);
         res.status(500).send("Gagal memuat data setup: " + err.message);
     }
-});
-
-app.get('/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
 });
 
 // GANTI rute /save-settings lama dengan ini
