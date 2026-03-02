@@ -60,31 +60,37 @@ app.use(session({
     }
 }));
 
-// 2. DATABASE INITIALIZATION (STERIL)
+// 2. DATABASE INITIALIZATION (Async Version)
+const initDB = async () => {
+    try {
+        const pk = "SERIAL PRIMARY KEY"; 
+        
+        await db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`);
 
+        await db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`);
 
-// Inisialisasi Tabel (Tanpa Injeksi Otomatis yang mencurigakan bagi Vercel)
-db.serialize(() => {
-    const pk = "SERIAL PRIMARY KEY"; 
-    
-    // Tambahkan array kosong [] sebagai parameter kedua jika tidak ada input data
-    db.run(`CREATE TABLE IF NOT EXISTS settings (id ${pk}, tenant_id INTEGER UNIQUE, nama_aplikasi TEXT, nama_perusahaan TEXT, alamat TEXT, no_hp TEXT, logo_path TEXT, password_admin TEXT, target_bonus REAL DEFAULT 500000, nominal_bonus_dasar REAL DEFAULT 10000, kelipatan_bonus REAL DEFAULT 100000, nominal_bonus_lipat REAL DEFAULT 5000, pembagi_lembur REAL DEFAULT 4, nominal_buffer REAL DEFAULT 0, beban_tetap REAL DEFAULT 0, level INTEGER DEFAULT 1)`, []);
+        // Cek Admin Utama
+        const row = await db.get("SELECT count(*) as count FROM users");
+        if (row && Number(row.count) === 0) {
+            // Gunakan password admin123 yang sudah di-hash agar bisa login
+            const hashedAdmin = await bcrypt.hash('admin123', 10);
+            await db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', ?, 'Administrator Tatriz', 'admin')`, [hashedAdmin]);
+        }
 
-    db.run(`CREATE TABLE IF NOT EXISTS users (id ${pk}, tenant_id INTEGER, username TEXT UNIQUE, password TEXT, nama_lengkap TEXT, role TEXT, gaji_pokok REAL DEFAULT 0)`, [], () => {
-        db.get("SELECT count(*) as count FROM users", [], (err, row) => {
-            // Postgres mengembalikan count sebagai string/bigint, gunakan Number() agar aman
-            if (row && Number(row.count) === 0) {
-                db.run(`INSERT INTO users (tenant_id, username, password, nama_lengkap, role) VALUES (1, 'admin', 'admin123', 'Administrator Tatriz', 'admin')`, []);
-            }
-        });
-    });
+        await db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`);
+        await db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`);
+        await db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`);
+        await db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`);
+        await db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`);
+        
+        console.log("✅ Database Supabase Terhubung & Tabel Siap!");
+    } catch (err) {
+        console.error("❌ Gagal Inisialisasi Database:", err);
+    }
+};
 
-    db.run(`CREATE TABLE IF NOT EXISTS po_utama (id ${pk}, tenant_id INTEGER, tanggal TEXT, nama_po TEXT, customer TEXT, status TEXT, total_harga_customer REAL DEFAULT 0)`, []);
-    db.run(`CREATE TABLE IF NOT EXISTS po_detail (id ${pk}, po_id INTEGER, jenis_bordir TEXT, nama_desain TEXT, jumlah INTEGER, harga_cmt REAL DEFAULT 0, harga_operator REAL, harga_customer REAL)`, []);
-    db.run(`CREATE TABLE IF NOT EXISTS mesin (id ${pk}, tenant_id INTEGER, nama_mesin TEXT)`, []);
-    db.run(`CREATE TABLE IF NOT EXISTS hasil_kerja (id ${pk}, tenant_id INTEGER, operator_id INTEGER, po_id INTEGER, detail_id INTEGER, mesin_id INTEGER, tanggal TEXT, shift TEXT, jumlah_setor INTEGER)`, []);
-    db.run(`CREATE TABLE IF NOT EXISTS arus_kas (id ${pk}, tenant_id INTEGER, tanggal TEXT, jenis TEXT, kategori TEXT, jumlah REAL, keterangan TEXT, po_id INTEGER)`, []);
-});
+// Jalankan inisialisasi
+initDB();
 //--------------------------------------------------------------------------------------------//
 
 // --- 3. MIDDLEWARE PROTEKSI ---
