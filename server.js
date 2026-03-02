@@ -196,29 +196,33 @@ app.get('/', async (req, res) => {
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
     try {
-        const user = await db.get("SELECT * FROM users WHERE username = ?", [username]);
+        // Gunakan String() untuk memastikan tipe data ke Postgres
+        const user = await db.get("SELECT * FROM users WHERE username = $1", [String(username)]);
         
         if (!user) {
-            return res.send("Username tidak ditemukan.");
+            return res.send("<script>alert('Username tidak ditemukan.'); window.history.back();</script>");
         }
 
         const match = await bcrypt.compare(password, user.password);
         if (!match) {
-            return res.send("Password salah.");
+            return res.send("<script>alert('Password salah.'); window.history.back();</script>");
         }
 
-        // Simpan ke session
+        // Set Session
         req.session.userId = user.id;
         req.session.tenantId = user.tenant_id;
         req.session.role = user.role;
+        req.session.nama = user.nama_lengkap;
 
-        // Penting di Vercel: Simpan session secara manual sebelum redirect
-        req.session.save(() => {
+        // WAJIB di Vercel: Simpan session sebelum redirect
+        req.session.save((err) => {
+            if (err) console.error("Session Save Error:", err);
             res.redirect('/dashboard');
         });
+
     } catch (err) {
         console.error("Login Error:", err);
-        res.status(500).send("Terjadi kesalahan pada server.");
+        res.status(500).send("Terjadi kesalahan sistem saat login.");
     }
 });
 
