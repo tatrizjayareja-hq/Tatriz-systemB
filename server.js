@@ -8,26 +8,29 @@ const pool = new Pool({
 });
 // WRAPPER DATABASE ASYNC (Agar Vercel stabil)
 const db = {
+    // Fungsi pembantu utama
     query: async (sql, params = []) => {
-        // 1. Ganti ? jadi $1, $2...
-        let count = 0;
-        const formattedSql = sql.replace(/\?/g, () => {
-            count++;
-            return `$${count}`;
-        });
-
-        // 2. Kirim ke Pool
-        const res = await pool.query(formattedSql, params);
-        return res;
+        // Otomatis ganti ? jadi $1, $2, dst
+        const formattedSql = sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+        const client = await pool.connect(); 
+        try {
+            const res = await client.query(formattedSql, params);
+            return res;
+        } finally {
+            client.release(); 
+        }
     },
+    
     get: async (sql, params = []) => {
         const res = await db.query(sql, params);
         return res.rows[0];
     },
+    
     all: async (sql, params = []) => {
         const res = await db.query(sql, params);
         return res.rows || [];
     },
+    
     run: async (sql, params = []) => {
         return await db.query(sql, params);
     }
@@ -294,6 +297,8 @@ const upload = multer({
 
 app.post('/save-settings-all', async (req, res) => {
     const tId = Number(req.session.tenantId);
+    console.log("DATA DITERIMA:", req.body); // <-- Tambahkan ini
+    console.log("TENANT ID:", tId);           // <-- Tambahkan ini
     const { 
         nama_perusahaan, no_hp, alamat, 
         target_bonus, nominal_bonus_dasar, 
@@ -408,20 +413,27 @@ app.post('/setup-auth', async (req, res) => {
 
 // 3. HALAMAN PENGATURAN (GET SETUP)
 app.get('/setup', noCache, async (req, res) => {
-    // Aktifkan kembali proteksi pintu gerbang
+    // 1. Cek proteksi pintu gerbang
     if (!req.session.isAdminSetup) return res.redirect('/setup-auth');
     
+    // 2. Ambil Tenant ID dan pastikan jadi Angka
     const tId = Number(req.session.tenantId) || 0;
+    if (tId === 0) return res.redirect('/');
 
     try {
+        // 3. Ambil data secara paralel (Ciri khas aplikasi modern)
         const [users, machines] = await Promise.all([
             db.all("SELECT * FROM users WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId]),
             db.all("SELECT * FROM mesin WHERE tenant_id = $1::INTEGER ORDER BY id ASC", [tId])
         ]);
 
-        res.render('setup', { users, machines });
+        // 4. Kirim ke tampilan
+        res.render('setup', { 
+            users: users || [], 
+            machines: machines || [] 
+        });
     } catch (err) {
-        console.error("Setup Page Error Detail:", err);
+        console.error("Setup Page Error:", err);
         res.status(500).send("Gagal memuat data setup: " + err.message);
     }
 });
@@ -585,27 +597,6 @@ app.post('/save-kas', (req, res) => {
     }
 });
 
-app.get('/setup', noCache, async (req, res) => {
-    // Pastikan session ada isinya
-    const rawId = req.session.tenantId;
-    if (!rawId) return res.redirect('/');
-
-    const tId = parseInt(rawId);
-
-    try {
-        // Kita panggil manual dengan CAST di SQL-nya untuk keamanan ganda
-        const users = await db.all("SELECT * FROM users WHERE tenant_id = $1::INTEGER", [tId]);
-        const machines = await db.all("SELECT * FROM mesin WHERE tenant_id = $1::INTEGER", [tId]);
-
-        res.render('setup', { 
-            users: users, 
-            machines: machines 
-        });
-    } catch (err) {
-        console.error("Setup Error:", err.message);
-        res.status(500).send("Gagal: " + err.message);
-    }
-});
 
 // A. Simpan/Update User
 app.post('/save-user', isAdmin, (req, res) => {
