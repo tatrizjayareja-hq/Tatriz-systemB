@@ -297,8 +297,6 @@ const upload = multer({
 
 app.post('/save-settings-all', async (req, res) => {
     const tId = Number(req.session.tenantId);
-    console.log("DATA DITERIMA:", req.body); // <-- Tambahkan ini
-    console.log("TENANT ID:", tId);           // <-- Tambahkan ini
     const { 
         nama_perusahaan, no_hp, alamat, 
         target_bonus, nominal_bonus_dasar, 
@@ -307,22 +305,40 @@ app.post('/save-settings-all', async (req, res) => {
     } = req.body;
 
     try {
-        // 1. Update Tabel Settings
-        await db.run(
-            `UPDATE settings SET 
-                nama_perusahaan = $1, no_hp = $2, alamat = $3, 
-                target_bonus = $4, nominal_bonus_dasar = $5, 
-                nominal_buffer = $6, beban_tetap = $7 
-            WHERE tenant_id = $8::INTEGER`,
-            [
-                nama_perusahaan, no_hp, alamat, 
-                Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
-                Number(nominal_buffer) || 0, Number(beban_tetap) || 0, 
-                tId
-            ]
-        );
+        // 1. CEK DULU: Apakah tenant_id ini sudah ada di tabel settings?
+        const existingSettings = await db.get("SELECT tenant_id FROM settings WHERE tenant_id = $1::INTEGER", [tId]);
 
-        // 2. Jika ada nama mesin baru diisi, tambahkan ke tabel mesin
+        if (!existingSettings) {
+            // JIKA BELUM ADA: Lakukan INSERT
+            await db.run(
+                `INSERT INTO settings (
+                    tenant_id, nama_perusahaan, no_hp, alamat, 
+                    target_bonus, nominal_bonus_dasar, nominal_buffer, beban_tetap
+                ) VALUES ($1::INTEGER, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                    tId, nama_perusahaan, no_hp, alamat, 
+                    Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
+                    Number(nominal_buffer) || 0, Number(beban_tetap) || 0
+                ]
+            );
+        } else {
+            // JIKA SUDAH ADA: Lakukan UPDATE
+            await db.run(
+                `UPDATE settings SET 
+                    nama_perusahaan = $1, no_hp = $2, alamat = $3, 
+                    target_bonus = $4, nominal_bonus_dasar = $5, 
+                    nominal_buffer = $6, beban_tetap = $7 
+                WHERE tenant_id = $8::INTEGER`,
+                [
+                    nama_perusahaan, no_hp, alamat, 
+                    Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
+                    Number(nominal_buffer) || 0, Number(beban_tetap) || 0, 
+                    tId
+                ]
+            );
+        }
+
+        // 2. Tambah Mesin Baru (Jika diisi)
         if (nama_mesin_baru && nama_mesin_baru.trim() !== "") {
             await db.run(
                 "INSERT INTO mesin (tenant_id, nama_mesin) VALUES ($1::INTEGER, $2)",
@@ -330,10 +346,10 @@ app.post('/save-settings-all', async (req, res) => {
             );
         }
 
-        res.send("<script>alert('Semua perubahan berhasil disimpan!'); window.location='/setup';</script>");
+        res.send("<script>alert('Pengaturan Berhasil Disimpan ke Cloud!'); window.location='/setup';</script>");
     } catch (err) {
-        console.error("Save Settings Error:", err);
-        res.status(500).send("Gagal menyimpan: " + err.message);
+        console.error("Save Error:", err.message);
+        res.status(500).send("Gagal Simpan: " + err.message);
     }
 });
 
