@@ -11,61 +11,90 @@
             --dark-green: #195e0b;
             --primary-green: #59cf77;
             --accent-green: #48b865;
-            --bg-soft: #eef2f3;
+            --text-gray: #636e72;
         }
 
         body, html {
             margin: 0;
             padding: 0;
-            height: 100%;
+            min-height: 100vh;
             font-family: 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #195e0b 0%, #48b865 100%); /* Latar belakang luar hijau */
+            background: linear-gradient(135deg, #195e0b 0%, #48b865 100%);
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
-        /* --- CARD UTAMA --- */
+        /* --- CONTAINER UTAMA --- */
+        .login-container {
+            width: 450px; /* Ukuran ideal untuk form vertikal */
+            max-width: 90%;
+            margin: 20px auto;
+        }
+
         .login-card {
-            display: flex;
-            width: 900px;
-            max-width: 95%;
-            height: 550px;
             background: white;
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column; /* ATAS - BAWAH */
         }
 
-        /* --- SISI KIRI: FORM LOGIN (HIJAU TUA) --- */
-        .side-form {
-            flex: 1;
+        /* --- BAGIAN ATAS: BRANDING --- */
+        .card-header {
+            background: white;
+            padding: 40px 30px 20px;
+            text-align: center;
+        }
+
+        .card-header img {
+            width: 120px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+
+        .card-header h1 {
+            color: var(--dark-green);
+            margin: 0;
+            font-size: 26px;
+            font-weight: 800;
+        }
+
+        .card-header .tagline {
+            color: var(--text-gray);
+            font-size: 14px;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        /* --- BAGIAN BAWAH: FORM --- */
+        .card-body {
             background-color: var(--dark-green);
             color: white;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 40px 35px;
         }
 
-        .side-form h2 {
-            margin: 0 0 10px 0;
-            font-size: 28px;
+        .card-body h2 {
+            margin: 0 0 5px 0;
+            font-size: 22px;
+            text-align: center;
         }
 
-        .side-form p {
-            font-size: 14px;
-            opacity: 0.8;
-            margin-bottom: 30px;
+        .card-body p {
+            font-size: 13px;
+            opacity: 0.7;
+            margin-bottom: 25px;
+            text-align: center;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .form-group label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
             margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -85,33 +114,37 @@
 
         .input-wrapper input {
             width: 100%;
-            padding: 12px 15px 12px 45px;
+            padding: 14px 15px 14px 45px;
             background: rgba(255,255,255,0.1);
             border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
+            border-radius: 10px;
             color: white;
             box-sizing: border-box;
             outline: none;
             transition: 0.3s;
+            font-size: 16px; /* Mencegah auto-zoom di iPhone */
         }
 
         .input-wrapper input:focus {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.15);
             border-color: var(--primary-green);
+            box-shadow: 0 0 0 4px rgba(89, 207, 119, 0.1);
         }
 
         .btn-login {
             width: 100%;
-            padding: 14px;
+            padding: 15px;
             background: var(--primary-green);
             color: var(--dark-green);
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 15px;
             cursor: pointer;
             transition: 0.3s;
             margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .btn-login:hover {
@@ -119,100 +152,81 @@
             transform: translateY(-2px);
         }
 
-        /* --- SISI KANAN: BRANDING (PUTIH) --- */
-        .side-branding {
-            flex: 1.2;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 40px;
+        /* --- FOOTER / LINK --- */
+        .card-footer {
+            padding: 20px;
             text-align: center;
-            border-left: 1px solid #eee;
+            background: #f9f9f9;
+            font-size: 13px;
         }
 
-        .side-branding img {
-            width: 150px;
-            height: auto;
-            margin-bottom: 25px;
-        }
-
-        .side-branding h1 {
-            color: var(--dark-green);
-            margin: 0;
-            font-size: 32px;
-            font-weight: 800;
-        }
-
-        .side-branding .tagline {
-            color: #636e72;
-            font-size: 16px;
-            margin-top: 10px;
-            line-height: 1.5;
-            max-width: 80%;
-        }
-
-        .reg-link {
-            margin-top: 40px;
-            font-size: 14px;
-            color: #b2bec3;
-        }
-
-        .reg-link a {
+        .card-footer a {
             color: var(--dark-green);
             text-decoration: none;
             font-weight: bold;
-            border-bottom: 2px solid var(--primary-green);
         }
 
-        /* --- RESPONSIVE --- */
-        @media (max-width: 768px) {
-            .login-card { flex-direction: column; height: auto; }
-            .side-branding { order: -1; padding: 30px; }
-            .side-form { padding: 30px; }
+        /* Info Sistem Baru */
+        .setup-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #fab1a0;
+            text-align: center;
+        }
+
+        /* Responsive Mobile */
+        @media (max-width: 480px) {
+            .login-container { width: 95%; }
+            .card-header { padding: 30px 20px 15px; }
+            .card-body { padding: 30px 20px; }
         }
     </style>
 </head>
 <body>
 
-    <div class="login-card">
-        <div class="side-form">
-            <h2>Portal Masuk</h2>
-            <p>Silakan login untuk akses dashboard.</p>
-
-            <form action="/login" method="POST">
-                <div class="form-group">
-                    <label>Username</label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-user"></i>
-                        <input type="text" name="username" placeholder="Masukkan username" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" name="password" placeholder="Masukkan password" required>
-                    </div>
-                </div>
-                <button type="submit" class="btn-login">MASUK SEKARANG</button>
-            </form>
-
-            <% if (isNew) { %>
-            <div style="margin-top: 20px; font-size: 12px; color: #fab1a0;">
-                <i class="fas fa-info-circle"></i> Sistem baru. <a href="/setup-auth" style="color: white;">Klik Setup Awal</a>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="card-header">
+                <img src="/img/Tatriz SystemB.png" alt="Logo Tatriz SystemB">
+                <h1>Tatriz SystemB</h1>
+                <p class="tagline">Solusi digital cerdas untuk manajemen bordir profesional.</p>
             </div>
-            <% } %>
-        </div>
 
-        <div class="side-branding">
-            <img src="/img/Tatriz SystemB.png" alt="Logo Tatriz SystemB">
-            <h1>Tatriz SystemB</h1>
-            <p class="tagline">Solusi digital cerdas untuk manajemen bordir profesional yang akurat dan terintegrasi.</p>
-            
-            <div class="reg-link">
-                Belum bergabung? <a href="/register">Daftarkan Perusahaan Anda</a>
+            <div class="card-body">
+                <h2>Portal Masuk</h2>
+                <p>Gunakan akun terdaftar Anda</p>
+
+                <form action="/login" method="POST">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-user"></i>
+                            <input type="text" name="username" placeholder="Username" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" name="password" placeholder="Password" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-login">Masuk Sekarang</button>
+                </form>
+
+                <% if (isNew) { %>
+                <div class="setup-info">
+                    <i class="fas fa-info-circle"></i> Sistem baru. 
+                    <a href="/setup-auth" style="color: white; text-decoration: underline;">Klik Setup Awal</a>
+                </div>
+                <% } %>
+            </div>
+
+            <div class="card-footer">
+                Belum bergabung? <a href="/register">Daftar Perusahaan</a>
             </div>
         </div>
     </div>
