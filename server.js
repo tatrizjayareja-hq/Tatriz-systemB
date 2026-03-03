@@ -295,56 +295,41 @@ const upload = multer({
 
 
 
-app.post('/save-settings-all', async (req, res) => {
-    const tId = Number(req.session.tenantId);
+app.post('/save-settings-all', isAdmin, async (req, res) => {
+    const tId = req.session.tenantId;
     const { 
-        nama_perusahaan, no_hp, alamat, 
-        target_bonus, nominal_bonus_dasar, 
-        nominal_buffer, beban_tetap,
-        nama_mesin_baru,
-        logo_path // <--- Ambil data logo dari form
+        nama_perusahaan, alamat, no_hp, nominal_buffer, 
+        target_bonus, nominal_bonus_dasar, beban_tetap,
+        nama_mesin_baru 
     } = req.body;
 
     try {
-        const existingSettings = await db.get("SELECT tenant_id FROM settings WHERE tenant_id = $1::INTEGER", [tId]);
+        // Gunakan COALESCE untuk menggantikan IFNULL
+        const sqlSettings = `UPDATE settings SET 
+                             nama_perusahaan = $1, alamat = $2, no_hp = $3, 
+                             nominal_buffer = $4,
+                             target_bonus = COALESCE($5, target_bonus), 
+                             nominal_bonus_dasar = COALESCE($6, nominal_bonus_dasar),
+                             beban_tetap = COALESCE($7, beban_tetap)
+                             WHERE tenant_id = $8`;
+        
+        await db.run(sqlSettings, [
+            nama_perusahaan, alamat, no_hp, 
+            Number(nominal_buffer) || 0, 
+            target_bonus ? Number(target_bonus) : null, 
+            nominal_bonus_dasar ? Number(nominal_bonus_dasar) : null, 
+            beban_tetap ? Number(beban_tetap) : null, 
+            tId
+        ]);
 
-        if (!existingSettings) {
-            await db.run(
-                `INSERT INTO settings (
-                    tenant_id, nama_perusahaan, no_hp, alamat, 
-                    target_bonus, nominal_bonus_dasar, nominal_buffer, beban_tetap, logo_path
-                ) VALUES ($1::INTEGER, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [
-                    tId, nama_perusahaan, no_hp, alamat, 
-                    Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
-                    Number(nominal_buffer) || 0, Number(beban_tetap) || 0, 
-                    logo_path || 'default.png'
-                ]
-            );
-        } else {
-            await db.run(
-                `UPDATE settings SET 
-                    nama_perusahaan = $1, no_hp = $2, alamat = $3, 
-                    target_bonus = $4, nominal_bonus_dasar = $5, 
-                    nominal_buffer = $6, beban_tetap = $7, 
-                    logo_path = $8 
-                WHERE tenant_id = $9::INTEGER`,
-                [
-                    nama_perusahaan, no_hp, alamat, 
-                    Number(target_bonus) || 0, Number(nominal_bonus_dasar) || 0, 
-                    Number(nominal_buffer) || 0, Number(beban_tetap) || 0, 
-                    logo_path, 
-                    tId
-                ]
-            );
+        if (nama_mesin_baru && nama_mesin_baru.trim() !== "") {
+            await db.run(`INSERT INTO mesin (tenant_id, nama_mesin) VALUES ($1, $2)`, [tId, nama_mesin_baru.trim()]);
         }
 
-        // ... proses tambah mesin tetap sama ...
-
-        res.send("<script>alert('Pengaturan & Logo Berhasil Diperbarui!'); window.location='/setup';</script>");
+        res.redirect('/setup');
     } catch (err) {
-        console.error("Save Error:", err.message);
-        res.status(500).send("Gagal Simpan: " + err.message);
+        console.error(err);
+        res.status(500).send("Gagal simpan pengaturan.");
     }
 });
 
@@ -659,6 +644,7 @@ app.post('/simpan-kerja', async (req, res) => {
     const { tanggal, shift, po_id, detail_id, jumlah_setor, mesin_id } = req.body;
     const userId = req.session.userId;
     const tId = req.session.tenantId;
+    const targetUserId = user_id_manual ? Number(user_id_manual) : Number(req.session.userId);
 
     if (!jumlah_setor || Number(jumlah_setor) <= 0) {
         return res.send("<script>alert('Jumlah tidak valid!'); window.history.back();</script>");
@@ -836,19 +822,22 @@ app.get('/cetak-nota/:id', (req, res) => {
 });
 
 // 3. RUTE HAPUS PO TOTAL
-app.get('/delete-po/:id', isAdmin, (req, res) => {
+app.get('/delete-po/:id', isAdmin, async (req, res) => {
     const tId = req.session.tenantId;
     const poId = req.params.id;
 
-    db.serialize(() => {
-        // Hapus log kerja, detail, dan utama (Hanya jika milik tenant ini)
-        db.run("DELETE FROM hasil_kerja WHERE po_id = ? AND tenant_id = ?", [poId, tId]);
-        db.run("DELETE FROM po_detail WHERE po_id IN (SELECT id FROM po_utama WHERE id = ? AND tenant_id = ?)", [poId, tId]);
-        db.run("DELETE FROM po_utama WHERE id = ? AND tenant_id = ?", [poId, tId], (err) => {
-            res.redirect('/po-data');
-        });
-    });
+    try {
+        // Hapus berurutan (Pastikan urutan benar agar tidak melanggar Foreign Key jika ada)
+        await db.run("DELETE FROM hasil_kerja WHERE po_id = $1 AND tenant_id = $2", [poId, tId]);
+        await db.run("DELETE FROM po_detail WHERE po_id = $1", [poId]); // Detail mengikuti PO ID
+        await db.run("DELETE FROM po_utama WHERE id = $1 AND tenant_id = $2", [poId, tId]);
+        
+        res.redirect('/po-data');
+    } catch (err) {
+        res.status(500).send("Gagal hapus PO.");
+    }
 });
+
 // 1. RUTE EDIT PO (MENAMPILKAN HALAMAN)
 app.get('/edit-po/:id', isAdmin, (req, res) => {
     const tId = req.session.tenantId;
@@ -1776,14 +1765,19 @@ async function updateStatusPO(poId) {
     try {
         const sqlCek = `
             SELECT 
-                (SELECT total_harga_customer FROM po_utama WHERE id = ?) as total_tagihan,
-                (SELECT SUM(jumlah) FROM arus_kas WHERE po_id = ?) as total_masuk
+                (SELECT total_harga_customer FROM po_utama WHERE id = $1) as total_tagihan,
+                (SELECT SUM(jumlah) FROM arus_kas WHERE po_id = $2) as total_masuk
         `;
+        // Gunakan db.get yang sudah Anda buat
         const row = await db.get(sqlCek, [poId, poId]);
 
         if (row && Number(row.total_tagihan) > 0) {
-            let statusBaru = (Number(row.total_masuk) >= Number(row.total_tagihan)) ? 'Lunas' : 'DP/Cicil';
-            await db.run("UPDATE po_utama SET status = ? WHERE id = ?", [statusBaru, poId]);
+            const totalTagihan = Number(row.total_tagihan);
+            const totalMasuk = Number(row.total_masuk) || 0;
+
+            let statusBaru = (totalMasuk >= totalTagihan) ? 'Lunas' : 'DP/Cicil';
+            
+            await db.run("UPDATE po_utama SET status = $1 WHERE id = $2", [statusBaru, poId]);
             console.log(`✅ Status PO #${poId} auto-update: ${statusBaru}`);
         }
     } catch (err) {
@@ -1858,7 +1852,6 @@ app.post('/proses-print-gaji', isAdmin, async (req, res) => {
         res.status(500).send("Terjadi kesalahan saat menyiapkan data cetak.");
     }
 });
-
 
 // JALANKAN SERVER
 app.listen(port, () => console.log(`🚀 Aplikasi Tatriz berjalan di http://localhost:${port}`));

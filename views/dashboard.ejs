@@ -114,56 +114,44 @@
             <div class="stat-item" style="border-bottom: 3px solid #e67e22;"><small>CICIL</small><b><%= stats.jml_cicil || 0 %></b></div>
         </div>
 
-        <p style="font-weight: 800; font-size: 11px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px;">Aksi Cepat</p>
-        <div class="shortcut-grid">
-            <a href="/po-baru" class="btn-main" style="background: var(--dark); color: white; border: none;">
-                <i class="bi bi-plus-circle-fill" style="color: var(--primary);"></i>
-                <span>INPUT PO</span>
-            </a>
-            <a href="/input-kas" class="btn-main">
-                <i class="bi bi-wallet2" style="color: var(--info);"></i>
-                <span>INPUT KAS</span>
-            </a>
-        </div>
-
         <p style="font-weight: 800; font-size: 11px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px;">Semua Laporan & Data</p>
-        <div class="menu-card">
-            <a href="/po-data" class="menu-item"><i class="bi bi-journal-text"></i> Data Pesanan (PO)</a>
-            <a href="/laporan-kas" class="menu-item"><i class="bi bi-cash-stack"></i> Laporan Keuangan</a>
-            <a href="/nota-manual" class="menu-item"><i class="bi bi-printer"></i> Cetak Nota Manual</a>
-            <a href="/piutang-customer" class="menu-item"><i class="bi bi-printer"></i> Cetak Nota / Customer</a>
-            <a href="/input-gaji" class="menu-item"><i class="bi bi-calculator"></i> Hitung Gaji Karyawan</a>
-            <a href="/daftar-produksi" class="menu-item"><i class="bi bi-list-check"></i> Log Produksi Harian</a>
-            <a href="/laporan-produksi" class="menu-item"><i class="bi bi-cpu"></i> Monitor Produksi</a>
-            <a href="/karyawan" class="menu-item"><i class="bi bi-people"></i> Manajemen Karyawan</a>            
-            <a href="/setup-auth" class="menu-item"><i class="bi bi-gear"></i> Pengaturan Sistem</a>
+            <div class="menu-card">
+                <a href="/po-data" class="menu-item"><i class="bi bi-journal-text"></i> Data Pesanan (PO)</a>
+                <a href="/laporan-kas" class="menu-item"><i class="bi bi-cash-stack"></i> Laporan Keuangan</a>
+                <a href="/nota-manual" class="menu-item"><i class="bi bi-printer"></i> Cetak Nota Manual</a>
+                <a href="/piutang-customer" class="menu-item"><i class="bi bi-person-badge"></i> Piutang Customer</a>
+                <a href="/input-gaji" class="menu-item"><i class="bi bi-calculator"></i> Hitung Gaji Karyawan</a>
+                <a href="/daftar-produksi" class="menu-item"><i class="bi bi-list-check"></i> Riwayat Produksi Harian</a>
+                <a href="/laporan-produksi" class="menu-item"><i class="bi bi-cpu"></i> Monitor Status Produksi</a>
+                <a href="/karyawan" class="menu-item"><i class="bi bi-people"></i> Manajemen Karyawan</a>            
+                <a href="/setup-auth" class="menu-item"><i class="bi bi-gear"></i> Pengaturan Sistem</a>
 
-            <div style="border-top: 2px dashed #eee; margin-top: 5px; padding-top: 5px; background: #fdfdfd;">
-                <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
-                    <a href="/performa-operator" class="menu-item"><i class="bi bi-bar-chart-line"></i> Performa Operator <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
-                    <a href="/admin/data-cmt" class="menu-item"><i class="bi bi-briefcase"></i> Data Order CMT <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
-                    <a href="/cek-balance" class="menu-item"><i class="bi bi-shield-check"></i> Cek Audit Balance <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
-                    <a href="/backup-database" class="menu-item" style="color: var(--warning);"><i class="bi bi-cloud-download"></i> Backup Database</a>
-                <% } else { %>
-                    <a href="javascript:void(0)" onclick="ajakUpgrade('Analisis Performa')" class="menu-item menu-locked">
-                        <i class="bi bi-bar-chart-line"></i> Performa Operator 
-                        <i class="bi bi-lock-fill"></i>
-                    </a>
-                    <a href="javascript:void(0)" onclick="ajakUpgrade('Pengelolaan CMT')" class="menu-item menu-locked">
-                        <i class="bi bi-briefcase"></i> Data Order CMT 
-                        <i class="bi bi-lock-fill"></i>
-                    </a>
-                    <a href="javascript:void(0)" onclick="ajakUpgrade('Audit Balance')" class="menu-item menu-locked">
-                        <i class="bi bi-shield-check"></i> Cek Audit Balance 
-                        <i class="bi bi-lock-fill"></i>
-                    </a>
-                    <a href="javascript:void(0)" onclick="ajakUpgrade('Cloud Backup')" class="menu-item menu-locked">
-                        <i class="bi bi-cloud-download"></i> Backup Database 
-                        <i class="bi bi-lock-fill"></i>
-                    </a>
-                <% } %>
+                <div style="border-top: 2px dashed #eee; margin-top: 5px; padding-top: 5px; background: #fdfdfd;">
+                    <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
+                        <a href="/performa-operator" class="menu-item"><i class="bi bi-bar-chart-line"></i> Analisis Performa <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                        <a href="/admin/data-cmt" class="menu-item"><i class="bi bi-briefcase"></i> Data Order CMT <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                        <a href="/cek-balance" class="menu-item"><i class="bi bi-shield-check"></i> Audit Saldo & Sistem <small style="color: var(--warning); font-size: 9px; margin-left: auto;">PRO</small></a>
+                        <a href="/backup-database" class="menu-item" style="color: var(--info);"><i class="bi bi-cloud-arrow-down"></i> Ekspor Cadangan Data</a>
+                    <% } else { %>
+                        <a href="javascript:void(0)" onclick="ajakUpgrade('Analisis Performa')" class="menu-item menu-locked">
+                            <i class="bi bi-bar-chart-line"></i> Analisis Performa 
+                            <i class="bi bi-lock-fill"></i>
+                        </a>
+                        <a href="javascript:void(0)" onclick="ajakUpgrade('Pengelolaan CMT')" class="menu-item menu-locked">
+                            <i class="bi bi-briefcase"></i> Data Order CMT 
+                            <i class="bi bi-lock-fill"></i>
+                        </a>
+                        <a href="javascript:void(0)" onclick="ajakUpgrade('Audit Saldo')" class="menu-item menu-locked">
+                            <i class="bi bi-shield-check"></i> Audit Saldo & Sistem 
+                            <i class="bi bi-lock-fill"></i>
+                        </a>
+                        <a href="javascript:void(0)" onclick="ajakUpgrade('Ekspor Cloud')" class="menu-item menu-locked">
+                            <i class="bi bi-cloud-arrow-down"></i> Ekspor Cadangan Data 
+                            <i class="bi bi-lock-fill"></i>
+                        </a>
+                    <% } %>
+                </div>
             </div>
-        </div>
 
         <% if (user.tenantId === 1 || user.tenantLevel >= 2) { %>
             <div class="piutang-banner">
