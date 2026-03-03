@@ -295,41 +295,71 @@ const upload = multer({
 
 
 
-app.post('/save-settings-all', isAdmin, async (req, res) => {
+app.post('/save-settings-all', isAdmin, upload.single('logo_file'), async (req, res) => {
     const tId = req.session.tenantId;
     const { 
         nama_perusahaan, alamat, no_hp, nominal_buffer, 
         target_bonus, nominal_bonus_dasar, beban_tetap,
-        nama_mesin_baru 
+        nama_mesin_baru, logo_path_lama 
     } = req.body;
 
+    let finalLogoPath = logo_path_lama; // Default gunakan yang lama
+
     try {
-        // Gunakan COALESCE untuk menggantikan IFNULL
+        // 1. CEK JIKA ADA FILE DIUPLOAD
+        if (req.file) {
+            const file = req.file;
+            const fileExt = file.originalname.split('.').pop();
+            // Penamaan file unik per tenant: logo-100-17145678.png
+            const fileName = `logo-${tId}-${Date.now()}.${fileExt}`;
+            const filePath = `tenant_${tId}/${fileName}`;
+
+            // Upload ke Bucket Supabase (Pastikan anda sudah buat bucket bernama 'tatriz-assets')
+            const { data, error } = await supabase.storage
+                .from('public')
+                .upload(filePath, file.buffer, {
+                    contentType: file.mimetype,
+                    upsert: true
+                });
+
+            if (error) throw error;
+
+            // Ambil URL Publiknya
+            const { data: { publicUrl } } = supabase.storage
+                .from('public')
+                .getPublicUrl(filePath);
+            
+            finalLogoPath = publicUrl;
+        }
+
+        // 2. UPDATE DATABASE POSTGRES
         const sqlSettings = `UPDATE settings SET 
                              nama_perusahaan = $1, alamat = $2, no_hp = $3, 
-                             nominal_buffer = $4,
-                             target_bonus = COALESCE($5, target_bonus), 
-                             nominal_bonus_dasar = COALESCE($6, nominal_bonus_dasar),
-                             beban_tetap = COALESCE($7, beban_tetap)
-                             WHERE tenant_id = $8`;
+                             nominal_buffer = $4, logo_path = $5,
+                             target_bonus = COALESCE($6, target_bonus), 
+                             nominal_bonus_dasar = COALESCE($7, nominal_bonus_dasar),
+                             beban_tetap = COALESCE($8, beban_tetap)
+                             WHERE tenant_id = $9`;
         
         await db.run(sqlSettings, [
             nama_perusahaan, alamat, no_hp, 
-            Number(nominal_buffer) || 0, 
+            Number(nominal_buffer) || 0,
+            finalLogoPath,
             target_bonus ? Number(target_bonus) : null, 
             nominal_bonus_dasar ? Number(nominal_bonus_dasar) : null, 
             beban_tetap ? Number(beban_tetap) : null, 
             tId
         ]);
 
+        // Tambah Mesin jika ada
         if (nama_mesin_baru && nama_mesin_baru.trim() !== "") {
             await db.run(`INSERT INTO mesin (tenant_id, nama_mesin) VALUES ($1, $2)`, [tId, nama_mesin_baru.trim()]);
         }
 
         res.redirect('/setup');
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Gagal simpan pengaturan.");
+        console.error("Gagal Save Settings & Upload:", err);
+        res.status(500).send("Terjadi kesalahan: " + err.message);
     }
 });
 
